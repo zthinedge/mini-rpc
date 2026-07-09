@@ -1,0 +1,22 @@
+#include "include/minirpc/net/InetAddress.h"
+#include <stdexcept>
+
+net::minirpc::InetAddress::InetAddress(const std::string& ip, std::uint16_t port) {
+    addr_.sin_family = AF_INET;
+    addr_.sin_port = htons(port);
+
+    int res = inet_pton(AF_INET, ip.c_str(), &addr_.sin_addr);
+    if (res != 1) {
+        throw std::invalid_argument("invalid ip address");
+    }
+}
+
+std::string net::minirpc::InetAddress::Ip() const {
+    char buf[INET_ADDRSTRLEN];
+    const char* result = inet_ntop(AF_INET, &addr_.sin_addr, buf, sizeof(buf));
+    return result ? std::string(buf) : std::string();
+}
+
+std::string net::minirpc::InetAddress::Port() const {
+    return std::to_string(ntohs(addr_.sin_port));
+}
