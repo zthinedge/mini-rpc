@@ -12,8 +12,8 @@
 #include <sys/socket.h>
 #include <thread>
 
-using net::minirpc::InetAddress;
-using net::minirpc::Socket;
+using minirpc::net::InetAddress;
+using minirpc::net::Socket;
 
 int main() {
     std::promise<std::uint16_t> port_promise;
