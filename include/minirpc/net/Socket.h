@@ -3,11 +3,11 @@
 #include <sys/types.h> // ssize_t
 #include <fcntl.h>
 // 前向声明，避免在头文件里包含 InetAddress.h（减少依赖）
-namespace net::minirpc {
+namespace minirpc::net {
     class InetAddress;
 }
 
-namespace net::minirpc {
+namespace minirpc::net {
 
 class Socket {
 private:

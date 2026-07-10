@@ -8,7 +8,7 @@
 #include <stdexcept>       // runtime_error
 #include <cerrno>          // errno
 
-namespace net::minirpc {
+namespace minirpc::net {
 
 // 构造：创建 TCP 套接字
 Socket::Socket() : fd_(::socket(AF_INET, SOCK_STREAM, 0)) {

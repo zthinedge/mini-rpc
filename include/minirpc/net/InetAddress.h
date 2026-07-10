@@ -4,7 +4,7 @@
 #include <cstdint>
 #include <arpa/inet.h>
 
-namespace net::minirpc {
+namespace minirpc::net {
 
 class InetAddress {
 private:
