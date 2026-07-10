@@ -100,4 +100,27 @@ int Socket::GetFd() const noexcept {
     return fd_;
 }
 
+//端口重用
+void Socket::SetReuseAddr(bool on){
+    int opt=on?1:0;
+
+    if(::setsockopt(fd_,SOL_SOCKET,SO_REUSEADDR,&opt,sizeof(opt))==-1){
+        throw std::runtime_error("setsockopt(SO_REUSEADDR) failed: "+std::string(strerror(errno)));
+    }
+}
+//非阻塞
+void Socket::SetNonBlocking(){
+    int flags = ::fcntl(fd_, F_GETFL, 0);
+    if (flags == -1) {
+        throw std::runtime_error("fcntl(F_GETFL) failed: " +
+                                 std::string(strerror(errno)));
+    }
+    //在原来的属性上加O_NONBLOCK
+    if (::fcntl(fd_, F_SETFL, flags | O_NONBLOCK) == -1) {
+        throw std::runtime_error("fcntl(F_SETFL) failed: " +
+                                 std::string(strerror(errno)));
+    }
+}
+
+
 } // namespace net::minirpc

@@ -1,7 +1,7 @@
 #pragma once
 #include <cstddef>  // size_t
 #include <sys/types.h> // ssize_t
-
+#include <fcntl.h>
 // 前向声明，避免在头文件里包含 InetAddress.h（减少依赖）
 namespace net::minirpc {
     class InetAddress;
@@ -35,6 +35,9 @@ public:
     ssize_t Recv(void* buffer, size_t len, int flags = 0);
 
     int GetFd() const noexcept;
+
+    void SetReuseAddr(bool on);
+    void SetNonBlocking();
 
 private:
     // 私有构造：仅供 Accept 内部使用

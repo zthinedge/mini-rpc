@@ -1,0 +1,28 @@
+cmake_minimum_required(VERSION 3.16)
+
+project(mini_rpc LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+add_library(minirpc
+    src/net/InetAddress.cpp
+    src/net/Socket.cpp
+    src/net/Buffer.cpp
+)
+
+target_include_directories(minirpc PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+enable_testing()
+
+add_executable(test_socket
+    tests/net/testsocket.cpp
+)
+
+target_link_libraries(test_socket PRIVATE
+    minirpc
+)
+
+add_test(NAME test_socket COMMAND test_socket)
