@@ -1,4 +1,4 @@
-#include "include/minirpc/net/InetAddress.h"
+#include "minirpc/net/InetAddress.h"
 #include <stdexcept>
 
 net::minirpc::InetAddress::InetAddress(const std::string& ip, std::uint16_t port) {
@@ -11,12 +11,15 @@ net::minirpc::InetAddress::InetAddress(const std::string& ip, std::uint16_t port
     }
 }
 
+net::minirpc::InetAddress::InetAddress(const sockaddr_in& addr)
+    : addr_(addr) {}
+
 std::string net::minirpc::InetAddress::Ip() const {
     char buf[INET_ADDRSTRLEN];
     const char* result = inet_ntop(AF_INET, &addr_.sin_addr, buf, sizeof(buf));
     return result ? std::string(buf) : std::string();
 }
 
-std::string net::minirpc::InetAddress::Port() const {
-    return std::to_string(ntohs(addr_.sin_port));
+std::uint16_t net::minirpc::InetAddress::Port() const {
+    return ntohs(addr_.sin_port);
 }
