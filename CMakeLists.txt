@@ -20,9 +20,17 @@ enable_testing()
 add_executable(test_socket
     tests/net/testsocket.cpp
 )
+add_executable(test_buffer
+    tests/net/testbuffer.cpp
+)
 
 target_link_libraries(test_socket PRIVATE
     minirpc
 )
+target_link_libraries(test_buffer PRIVATE
+    minirpc
+)
+
 
 add_test(NAME test_socket COMMAND test_socket)
+add_test(NAME test_buffer COMMAND test_buffer)

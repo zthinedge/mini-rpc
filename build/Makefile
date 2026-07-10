@@ -152,6 +152,19 @@ test_socket/fast:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_socket.dir/build.make CMakeFiles/test_socket.dir/build
 .PHONY : test_socket/fast
 
+#=============================================================================
+# Target rules for targets named test_buffer
+
+# Build rule for target.
+test_buffer: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 test_buffer
+.PHONY : test_buffer
+
+# fast build rule for target.
+test_buffer/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_buffer.dir/build.make CMakeFiles/test_buffer.dir/build
+.PHONY : test_buffer/fast
+
 src/net/Buffer.o: src/net/Buffer.cpp.o
 .PHONY : src/net/Buffer.o
 
@@ -224,6 +237,30 @@ src/net/Socket.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/minirpc.dir/build.make CMakeFiles/minirpc.dir/src/net/Socket.cpp.s
 .PHONY : src/net/Socket.cpp.s
 
+tests/net/testbuffer.o: tests/net/testbuffer.cpp.o
+.PHONY : tests/net/testbuffer.o
+
+# target to build an object file
+tests/net/testbuffer.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_buffer.dir/build.make CMakeFiles/test_buffer.dir/tests/net/testbuffer.cpp.o
+.PHONY : tests/net/testbuffer.cpp.o
+
+tests/net/testbuffer.i: tests/net/testbuffer.cpp.i
+.PHONY : tests/net/testbuffer.i
+
+# target to preprocess a source file
+tests/net/testbuffer.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_buffer.dir/build.make CMakeFiles/test_buffer.dir/tests/net/testbuffer.cpp.i
+.PHONY : tests/net/testbuffer.cpp.i
+
+tests/net/testbuffer.s: tests/net/testbuffer.cpp.s
+.PHONY : tests/net/testbuffer.s
+
+# target to generate assembly for a file
+tests/net/testbuffer.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_buffer.dir/build.make CMakeFiles/test_buffer.dir/tests/net/testbuffer.cpp.s
+.PHONY : tests/net/testbuffer.cpp.s
+
 tests/net/testsocket.o: tests/net/testsocket.cpp.o
 .PHONY : tests/net/testsocket.o
 
@@ -258,6 +295,7 @@ help:
 	@echo "... rebuild_cache"
 	@echo "... test"
 	@echo "... minirpc"
+	@echo "... test_buffer"
 	@echo "... test_socket"
 	@echo "... src/net/Buffer.o"
 	@echo "... src/net/Buffer.i"
@@ -268,6 +306,9 @@ help:
 	@echo "... src/net/Socket.o"
 	@echo "... src/net/Socket.i"
 	@echo "... src/net/Socket.s"
+	@echo "... tests/net/testbuffer.o"
+	@echo "... tests/net/testbuffer.i"
+	@echo "... tests/net/testbuffer.s"
 	@echo "... tests/net/testsocket.o"
 	@echo "... tests/net/testsocket.i"
 	@echo "... tests/net/testsocket.s"

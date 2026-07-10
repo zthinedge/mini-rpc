@@ -1,5 +1,6 @@
-CMakeFiles/minirpc.dir/src/net/Buffer.cpp.o: \
- /home/zym/Share/mini-rpc/src/net/Buffer.cpp /usr/include/stdc-predef.h \
+CMakeFiles/test_buffer.dir/tests/net/testbuffer.cpp.o: \
+ /home/zym/Share/mini-rpc/tests/net/testbuffer.cpp \
+ /usr/include/stdc-predef.h \
  /home/zym/Share/mini-rpc/include/minirpc/net/Buffer.h \
  /usr/include/c++/11/string \
  /usr/include/x86_64-linux-gnu/c++/11/bits/c++config.h \
@@ -152,4 +153,5 @@ CMakeFiles/minirpc.dir/src/net/Buffer.cpp.o: \
  /usr/include/c++/11/bits/node_handle.h \
  /usr/include/c++/11/bits/unordered_map.h \
  /usr/include/c++/11/bits/erase_if.h \
- /usr/include/c++/11/pstl/execution_defs.h /usr/include/c++/11/cstddef
+ /usr/include/c++/11/pstl/execution_defs.h /usr/include/c++/11/cstddef \
+ /usr/include/c++/11/cassert /usr/include/assert.h
