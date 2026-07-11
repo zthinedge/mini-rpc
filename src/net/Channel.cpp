@@ -1,0 +1,86 @@
+#include "minirpc/net/Channel.h"
+#include <sys/epoll.h>
+namespace minirpc::net
+{
+
+Channel::Channel(EventLoop*loop,int fd)
+    :loop_(loop),fd_(fd),events_(0),revents_(0){}
+
+
+void Channel::HandleEvent() {
+    //fd出错
+    if (revents_ & EPOLLERR) {
+        if (error_callback_) {
+            error_callback_();
+        }
+    }
+
+    //连接挂断并且没有待读数据
+    if ((revents_ & EPOLLHUP) && !(revents_ & EPOLLIN)) {
+        if (close_callback_) {
+            close_callback_();
+        }
+    }
+
+    //可读，紧急数据可读，对方关闭写方向（半关闭）
+    if (revents_ & (EPOLLIN | EPOLLPRI | EPOLLRDHUP)) {
+        if (read_callback_) {
+            read_callback_();
+        }
+    }
+
+    //可以发送数据
+    if (revents_ & EPOLLOUT) {
+        if (write_callback_) {
+            write_callback_();
+        }
+    }
+}
+
+int Channel::Fd()const noexcept{
+    return fd_;
+}
+
+uint32_t Channel::Events()const noexcept{
+    return events_;
+}
+uint32_t Channel::Revents() const noexcept{
+    return revents_;
+}
+
+//Poller 把epoll实际检测到的事件保存进channel
+void Channel::SetRevents(uint32_t revents) noexcept{
+    revents_=revents;
+}
+
+void Channel::EnableReading(){
+    events_|=EPOLLIN;
+    update();
+}
+void Channel::EnableWriting(){
+    events_|=EPOLLOUT;
+    update();
+}
+void Channel::DisableWriting(){
+    events_ &= ~EPOLLOUT;
+    update();
+}
+void Channel::DisableAll(){
+    events_=0;
+    update();
+}
+
+void Channel::SetReadCallback(Callback cb){
+    read_callback_=std::move(cb);
+}
+void Channel::SetWriteCallback(Callback cb){
+    write_callback_=std::move(cb);
+}
+void Channel::SetCloseCallback(Callback cb){
+    close_callback_=std::move(cb);
+}
+void Channel::SetErrorCallback(Callback cb){
+    error_callback_=std::move(cb);
+}
+
+}
