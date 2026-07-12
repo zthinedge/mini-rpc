@@ -38,7 +38,7 @@ public:
     void SetErrorCallback(Callback cb);
 
 private:
-    void update();
+    void Update();
 private:
     EventLoop *loop_;
     int fd_;

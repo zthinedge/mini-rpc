@@ -1,4 +1,5 @@
 #include "minirpc/net/Channel.h"
+#include "minirpc/net/EventLoop.h"
 #include <sys/epoll.h>
 namespace minirpc::net
 {
@@ -55,19 +56,19 @@ void Channel::SetRevents(uint32_t revents) noexcept{
 
 void Channel::EnableReading(){
     events_|=EPOLLIN;
-    update();
+    Update();
 }
 void Channel::EnableWriting(){
     events_|=EPOLLOUT;
-    update();
+    Update();
 }
 void Channel::DisableWriting(){
     events_ &= ~EPOLLOUT;
-    update();
+    Update();
 }
 void Channel::DisableAll(){
     events_=0;
-    update();
+    Update();
 }
 
 void Channel::SetReadCallback(Callback cb){
@@ -81,6 +82,10 @@ void Channel::SetCloseCallback(Callback cb){
 }
 void Channel::SetErrorCallback(Callback cb){
     error_callback_=std::move(cb);
+}
+
+void Channel::Update(){
+    loop_->UpdateChannel(this);
 }
 
 }
