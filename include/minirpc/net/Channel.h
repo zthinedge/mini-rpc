@@ -7,6 +7,12 @@ namespace minirpc::net
 {
 class EventLoop;
 
+enum class State{
+    New,    //从未加入epoll
+    Added,  //已经加入epoll
+    Deleted     //曾经加入，被删除
+};
+
 class Channel
 {
 
@@ -37,11 +43,15 @@ public:
     void SetCloseCallback(Callback cb);
     void SetErrorCallback(Callback cb);
 
+    State GetState()const noexcept;
+    void SetState(State state)noexcept;
+
 private:
     void Update();
 private:
     EventLoop *loop_;
     int fd_;
+    State state_;
 
     uint32_t events_;   //希望监听的事件
     uint32_t revents_;      //实际发生的事件

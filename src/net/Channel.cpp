@@ -5,7 +5,7 @@ namespace minirpc::net
 {
 
 Channel::Channel(EventLoop*loop,int fd)
-    :loop_(loop),fd_(fd),events_(0),revents_(0){}
+    :loop_(loop),fd_(fd),events_(0),revents_(0),state_(State::New){}
 
 
 void Channel::HandleEvent() {
@@ -86,6 +86,13 @@ void Channel::SetErrorCallback(Callback cb){
 
 void Channel::Update(){
     loop_->UpdateChannel(this);
+}
+
+State Channel::GetState()const noexcept{
+    return state_;
+}
+void Channel::SetState(State state)noexcept{
+    state_=state;
 }
 
 }
