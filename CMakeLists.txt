@@ -11,6 +11,7 @@ add_library(minirpc
     src/net/Buffer.cpp
     src/net/Channel.cpp
     src/net/Poller.cpp
+    src/net/EventLoop.cpp
 )
 
 target_include_directories(minirpc PUBLIC
