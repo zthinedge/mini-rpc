@@ -9,6 +9,8 @@ add_library(minirpc
     src/net/InetAddress.cpp
     src/net/Socket.cpp
     src/net/Buffer.cpp
+    src/net/Channel.cpp
+    src/net/Poller.cpp
 )
 
 target_include_directories(minirpc PUBLIC

@@ -5,18 +5,13 @@ class Channel;
 class EventLoop
 {
 private:
-    /* data */
+    
 public:
     EventLoop(/* args */);
     ~EventLoop();
     void UpdateChannel(Channel*ch);
+    void RemoveChannel(Channel*ch);
 };
 
-EventLoop::EventLoop(/* args */)
-{
-}
 
-EventLoop::~EventLoop()
-{
-}
 }

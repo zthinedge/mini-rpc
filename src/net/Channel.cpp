@@ -5,7 +5,7 @@ namespace minirpc::net
 {
 
 Channel::Channel(EventLoop*loop,int fd)
-    :loop_(loop),fd_(fd),events_(0),revents_(0),state_(State::New){}
+    :loop_(loop),fd_(fd),inepoll_(false),events_(0),revents_(0){}
 
 
 void Channel::HandleEvent() {
@@ -88,11 +88,11 @@ void Channel::Update(){
     loop_->UpdateChannel(this);
 }
 
-State Channel::GetState()const noexcept{
-    return state_;
-}
-void Channel::SetState(State state)noexcept{
-    state_=state;
+bool Channel::IsInEpoll()const noexcept{
+    return inepoll_;
 }
 
+void Channel::SetInEpoll(bool inepoll)noexcept{
+    inepoll_=inepoll;
+}
 }
