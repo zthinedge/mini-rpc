@@ -14,6 +14,7 @@ add_library(minirpc
     src/net/EventLoop.cpp
     src/net/Acceptor.cpp
     src/net/TcpConnection.cpp
+    src/net/TcpServer.cpp
 )
 
 target_include_directories(minirpc PUBLIC
