@@ -13,6 +13,7 @@ add_library(minirpc
     src/net/Poller.cpp
     src/net/EventLoop.cpp
     src/net/Acceptor.cpp
+    src/net/TcpConnection.cpp
 )
 
 target_include_directories(minirpc PUBLIC
