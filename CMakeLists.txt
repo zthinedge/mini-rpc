@@ -14,6 +14,7 @@ add_library(minirpc
     src/net/EventLoop.cpp
     src/net/Acceptor.cpp
     src/net/Connector.cpp
+    src/net/TcpClient.cpp
     src/net/TcpConnection.cpp
     src/net/TcpServer.cpp
 )
@@ -33,6 +34,9 @@ add_executable(test_buffer
 add_executable(test_connector
     tests/net/testconnector.cpp
 )
+add_executable(test_tcp
+    tests/net/testtcp.cpp
+)
 
 target_link_libraries(test_socket PRIVATE
     minirpc
@@ -43,8 +47,12 @@ target_link_libraries(test_buffer PRIVATE
 target_link_libraries(test_connector PRIVATE
     minirpc
 )
+target_link_libraries(test_tcp PRIVATE
+    minirpc
+)
 
 
 add_test(NAME test_socket COMMAND test_socket)
 add_test(NAME test_buffer COMMAND test_buffer)
 add_test(NAME test_connector COMMAND test_connector)
+add_test(NAME test_tcp COMMAND test_tcp)
