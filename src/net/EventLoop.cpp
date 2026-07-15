@@ -33,7 +33,7 @@ void EventLoop::Loop(){
 void EventLoop::DoPendingFunctors(){
     std::vector<Functor> functors;
     functors.swap(pending_functors_);
-
+    //防止在执行任务时调用QueueInLooP
     for(auto& functor:functors){
         functor();
     }

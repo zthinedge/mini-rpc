@@ -48,7 +48,7 @@ void TcpServer::HandleNewConnection(Socket socket,const InetAddress&){
 
 void TcpServer::HandleClose(TcpConnection* connection){
     int fd=connection->Fd();
-
+    //放入EventLoop的待执行队列
     loop_->QueueInLoop([this,fd](){
         connections_.erase(fd);
     });
