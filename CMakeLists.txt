@@ -17,6 +17,9 @@ add_library(minirpc
     src/net/TcpClient.cpp
     src/net/TcpConnection.cpp
     src/net/TcpServer.cpp
+    src/protocol/RpcHeaderCodec.cpp
+    src/protocol/RpcMetaCodec.cpp
+    src/protocol/RpcCodec.cpp
 )
 
 target_include_directories(minirpc PUBLIC
@@ -37,6 +40,9 @@ add_executable(test_connector
 add_executable(test_tcp
     tests/net/testtcp.cpp
 )
+add_executable(test_rpc_codec
+    tests/protocol/test_rpc_codec.cpp
+)
 
 target_link_libraries(test_socket PRIVATE
     minirpc
@@ -50,9 +56,13 @@ target_link_libraries(test_connector PRIVATE
 target_link_libraries(test_tcp PRIVATE
     minirpc
 )
+target_link_libraries(test_rpc_codec PRIVATE
+    minirpc
+)
 
 
 add_test(NAME test_socket COMMAND test_socket)
 add_test(NAME test_buffer COMMAND test_buffer)
 add_test(NAME test_connector COMMAND test_connector)
 add_test(NAME test_tcp COMMAND test_tcp)
+add_test(NAME test_rpc_codec COMMAND test_rpc_codec)
