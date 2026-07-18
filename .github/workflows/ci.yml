@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
-      BUILD_DIR: ${{ runner.temp }}/mini-rpc-build
+      BUILD_DIR: cmake-build-ci
 
     steps:
       - name: Checkout repository
