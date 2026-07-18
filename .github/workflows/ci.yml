@@ -17,16 +17,18 @@ jobs:
     name: Build and test
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      BUILD_DIR: ${{ runner.temp }}/mini-rpc-build
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
 
       - name: Configure CMake
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+        run: cmake -S . -B "$BUILD_DIR" -DCMAKE_BUILD_TYPE=Debug
 
       - name: Build
-        run: cmake --build build --parallel
+        run: cmake --build "$BUILD_DIR" --parallel
 
       - name: Run tests
-        run: ctest --test-dir build --output-on-failure
+        run: ctest --test-dir "$BUILD_DIR" --output-on-failure
