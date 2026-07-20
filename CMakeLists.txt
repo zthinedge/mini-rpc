@@ -1,9 +1,12 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.22)
 
 project(mini_rpc LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+include(cmake/Protobuf.cmake)
+add_subdirectory(examples/services/calculator)
 
 add_library(minirpc
     src/net/InetAddress.cpp
@@ -43,6 +46,9 @@ add_executable(test_tcp
 add_executable(test_rpc_codec
     tests/protocol/test_rpc_codec.cpp
 )
+add_executable(test_protobuf
+    tests/serialization/test_protobuf.cpp
+)
 
 target_link_libraries(test_socket PRIVATE
     minirpc
@@ -59,6 +65,9 @@ target_link_libraries(test_tcp PRIVATE
 target_link_libraries(test_rpc_codec PRIVATE
     minirpc
 )
+target_link_libraries(test_protobuf PRIVATE
+    calculator_proto
+)
 
 
 add_test(NAME test_socket COMMAND test_socket)
@@ -66,3 +75,4 @@ add_test(NAME test_buffer COMMAND test_buffer)
 add_test(NAME test_connector COMMAND test_connector)
 add_test(NAME test_tcp COMMAND test_tcp)
 add_test(NAME test_rpc_codec COMMAND test_rpc_codec)
+add_test(NAME test_protobuf COMMAND test_protobuf)

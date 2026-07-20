@@ -6,7 +6,7 @@ include/minirpc/
   net/             Reactor 网络层：Buffer、EventLoop、Channel、Poller、TcpConnection
   protocol/        RPC 二进制协议：RpcHeader、RpcMeta、RpcMessage、RpcCodec
   rpc/             RPC 调用层：RpcClient、RpcServer、RpcChannel、PendingCalls、ServiceRegistry
-  serialization/   序列化层：Serializer、MiniProtobufSerializer
+  serialization/   序列化层：Protobuf 消息与生成代码
 
 src/
   common/          common 对应实现
@@ -26,7 +26,7 @@ tests/
   net/             Buffer/EventLoop/TcpConnection 测试
   protocol/        RpcCodec 半包、粘包、非法包测试
   rpc/             PendingCalls、ServiceRegistry、RpcClient/RpcServer 测试
-  serialization/   mini-protobuf 序列化测试
+  serialization/   Protobuf 序列化测试
 ```
 
 核心原则：

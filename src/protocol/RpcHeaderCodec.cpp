@@ -40,7 +40,7 @@ std::string RpcHeaderCodec::Encode(
         throw std::invalid_argument("invalid rpc message type");
     }
 
-    if(header.codec!=CodecType::MiniProtobuf){
+    if(header.codec!=CodecType::Protobuf){
         throw std::invalid_argument("unsupported rpc codec");
     }
 
@@ -115,7 +115,7 @@ bool RpcHeaderCodec::Decode(
         return false;
     }
 
-    if(codec!=static_cast<std::uint8_t>(CodecType::MiniProtobuf)){
+    if(codec!=static_cast<std::uint8_t>(CodecType::Protobuf)){
         SetError(error,"unsupported rpc codec");
         return false;
     }

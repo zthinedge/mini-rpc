@@ -20,14 +20,14 @@ enum class MessageType : std::uint8_t{
 
 enum class CodecType : std::uint8_t{
     Unknown=0,
-    MiniProtobuf=1
+    Protobuf=1
 };
 
 struct RpcHeader{
     std::uint32_t magic=kMagic;
     std::uint8_t version=kVersion;
     MessageType message_type=MessageType::Unknown;
-    CodecType codec=CodecType::MiniProtobuf;
+    CodecType codec=CodecType::Protobuf;
     std::uint8_t flags=0;
     std::uint64_t request_id=0;
     std::uint32_t meta_len=0;

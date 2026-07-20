@@ -16,13 +16,18 @@ jobs:
   build-and-test:
     name: Build and test
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     env:
       BUILD_DIR: cmake-build-ci
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes libprotobuf-dev protobuf-compiler
 
       - name: Configure CMake
         run: cmake -S . -B "$BUILD_DIR" -DCMAKE_BUILD_TYPE=Debug
