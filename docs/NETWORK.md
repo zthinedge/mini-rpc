@@ -30,10 +30,10 @@ Tcpclient拥有Connector，Connector主要负责连接服务端。
 客户端调用连接器于服务端的监听器相作用，通过TCP三次握手建立连接。连接建立的时候需要传入参数Socket，同时设置对应的读写回调。
 
 ## 11. 线程模型和生命周期约束
-当前采用单 Reactor、单线程模型。EventLoop 必须比关联的 Channel、TcpServer 和 TcpClient 活得更久。Socket 和 Poller 使用 RAII 在析构时关闭 fd，TcpConnection 由 unique_ptr 管理。连接关闭时通过 QueueInLoop 延迟释放，避免删除正在执行回调的 Channel。
+当前采用单 Reactor、单 EventLoop 线程模型。EventLoop 记录创建它的线程，其他线程通过 RunInLoop 或 QueueInLoop 投递任务；任务队列使用互斥锁保护，并通过 eventfd 唤醒阻塞在 epoll_wait 的循环。Stop 同样会写 eventfd，因此可以从其他线程立即唤醒并停止循环。EventLoop 必须比关联的 Channel、TcpServer 和 TcpClient 活得更久。Socket 和 Poller 使用 RAII 在析构时关闭 fd，TcpConnection 由 unique_ptr 管理。连接关闭时通过 QueueInLoop 延迟释放，避免删除正在执行回调的 Channel。
 
 ## 12. 测试方式
-使用 CMake 构建后通过 ctest --test-dir build --output-on-failure 运行测试，当前覆盖 Socket、Buffer、Connector 和 TcpClient/TcpServer 端到端收发
+使用 CMake 构建后通过 ctest --test-dir build --output-on-failure 运行测试，当前覆盖 Socket、Buffer、Connector、EventLoop 跨线程投递与停止，以及 TcpClient/TcpServer 端到端收发。
 
 ## 13. 当前限制
 fd设置成了非阻塞，但是accept可能可以优化成accept4；主从reactor可能性能更好

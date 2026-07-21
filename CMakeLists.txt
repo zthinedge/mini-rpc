@@ -5,6 +5,8 @@ project(mini_rpc LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+find_package(Threads REQUIRED)
+
 include(cmake/Protobuf.cmake)
 add_subdirectory(examples/services/calculator)
 
@@ -29,6 +31,10 @@ target_include_directories(minirpc PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
+target_link_libraries(minirpc PUBLIC
+    Threads::Threads
+)
+
 enable_testing()
 
 add_executable(test_socket
@@ -42,6 +48,9 @@ add_executable(test_connector
 )
 add_executable(test_tcp
     tests/net/testtcp.cpp
+)
+add_executable(test_event_loop
+    tests/net/testeventloop.cpp
 )
 add_executable(test_rpc_codec
     tests/protocol/test_rpc_codec.cpp
@@ -62,6 +71,9 @@ target_link_libraries(test_connector PRIVATE
 target_link_libraries(test_tcp PRIVATE
     minirpc
 )
+target_link_libraries(test_event_loop PRIVATE
+    minirpc
+)
 target_link_libraries(test_rpc_codec PRIVATE
     minirpc
 )
@@ -74,5 +86,6 @@ add_test(NAME test_socket COMMAND test_socket)
 add_test(NAME test_buffer COMMAND test_buffer)
 add_test(NAME test_connector COMMAND test_connector)
 add_test(NAME test_tcp COMMAND test_tcp)
+add_test(NAME test_event_loop COMMAND test_event_loop)
 add_test(NAME test_rpc_codec COMMAND test_rpc_codec)
 add_test(NAME test_protobuf COMMAND test_protobuf)

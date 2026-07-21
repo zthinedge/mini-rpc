@@ -1,10 +1,54 @@
 #include "minirpc/net/EventLoop.h"
-#include "minirpc/net/Channel.h"
 
+#include <cerrno>
+#include <cstdint>
+#include <stdexcept>
+#include <sys/eventfd.h>
+#include <thread>
+#include <unistd.h>
 #include <utility>
 
 namespace minirpc::net{
-EventLoop::EventLoop():ep_(this),stop_(false){}
+
+namespace{
+
+int CreateEventFd(){
+    int fd=::eventfd(0,EFD_NONBLOCK|EFD_CLOEXEC);
+    if(fd==-1){
+        throw std::runtime_error("eventfd failed");
+    }
+    return fd;
+}
+
+}
+
+EventLoop::EventLoop()
+    :ep_(this),
+     stop_(false),
+     thread_id_(std::this_thread::get_id()),
+     wakeup_fd_(CreateEventFd()),
+     wakeup_channel_(this,wakeup_fd_),
+     calling_pending_functors_(false){
+    try{
+        wakeup_channel_.SetReadCallback([this](){
+            HandleWakeup();
+        });
+        wakeup_channel_.EnableReading();
+    }catch(...){
+        ::close(wakeup_fd_);
+        throw;
+    }
+}
+
+EventLoop::~EventLoop(){
+    if(wakeup_channel_.IsInEpoll()){
+        try{
+            wakeup_channel_.DisableAll();
+        }catch(...){
+        }
+    }
+    ::close(wakeup_fd_);
+}
 
 void EventLoop::UpdateChannel(Channel*ch){
     ep_.UpdateChannel(ch);
@@ -13,12 +57,28 @@ void EventLoop::RemoveChannel(Channel*ch){
     ep_.RemoveChannel(ch);
 }
 
+void EventLoop::RunInLoop(Functor cb){
+    if(IsInLoopThread()){
+        cb();
+        return;
+    }
+
+    QueueInLoop(std::move(cb));
+}
+
 void EventLoop::QueueInLoop(Functor cb){
-    pending_functors_.push_back(std::move(cb));
+    {
+        std::lock_guard<std::mutex>lock(mutex_);
+        pending_functors_.push_back(std::move(cb));
+    }
+
+    if(!IsInLoopThread()||calling_pending_functors_){
+        Wakeup();
+    }
 }
 
 void EventLoop::Loop(){
-    while(!stop_){
+    while(!stop_.load()){
         ep_.Poll(-1,&channels);
 
         for(auto ch:channels){
@@ -31,15 +91,50 @@ void EventLoop::Loop(){
 }
 
 void EventLoop::DoPendingFunctors(){
+    calling_pending_functors_=true;
+
     std::vector<Functor> functors;
-    functors.swap(pending_functors_);
-    //防止在执行任务时调用QueueInLooP
+    {
+        std::lock_guard<std::mutex>lock(mutex_);
+        functors.swap(pending_functors_);
+    }
+
+    //防止在执行任务时调用QueueInLoop后，任务一直等到下次IO事件
     for(auto& functor:functors){
         functor();
     }
+
+    calling_pending_functors_=false;
 }
 
 void EventLoop::Stop()noexcept{
-    stop_=true;
+    stop_.store(true);
+    Wakeup();
+}
+
+bool EventLoop::IsInLoopThread()const noexcept{
+    return thread_id_==std::this_thread::get_id();
+}
+
+void EventLoop::Wakeup()noexcept{
+    std::uint64_t value=1;
+
+    while(::write(wakeup_fd_,&value,sizeof(value))==-1){
+        if(errno==EINTR){
+            continue;
+        }
+        break;
+    }
+}
+
+void EventLoop::HandleWakeup()noexcept{
+    std::uint64_t value=0;
+
+    while(::read(wakeup_fd_,&value,sizeof(value))==-1){
+        if(errno==EINTR){
+            continue;
+        }
+        break;
+    }
 }
 }
