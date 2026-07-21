@@ -9,7 +9,8 @@ namespace minirpc::net{
 TcpConnection::TcpConnection(EventLoop*loop,Socket socket)
     :loop_(loop),
      socket_(std::move(socket)),
-     channel_(loop,socket_.GetFd()){
+     channel_(loop,socket_.GetFd()),
+     closed_(false){
 
     channel_.SetReadCallback([this](){
         HandleRead();
@@ -29,7 +30,7 @@ void TcpConnection::Start(){
 }
 
 void TcpConnection::Send(const std::string& data){
-    if(data.empty()){
+    if(data.empty()||closed_){
         return;
     }
 
@@ -73,6 +74,10 @@ void TcpConnection::Send(const std::string& data){
         );
         channel_.EnableWriting();
     }
+}
+
+void TcpConnection::Close(){
+    HandleClose();
 }
 
 void TcpConnection::SetMessageCallback(MessageCallback cb){
@@ -158,6 +163,11 @@ void TcpConnection::HandleWrite(){
 }
 
 void TcpConnection::HandleClose(){
+    if(closed_){
+        return;
+    }
+
+    closed_=true;
     channel_.DisableAll();
 
     if(close_callback_){

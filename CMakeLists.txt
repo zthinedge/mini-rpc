@@ -25,6 +25,8 @@ add_library(minirpc
     src/protocol/RpcHeaderCodec.cpp
     src/protocol/RpcMetaCodec.cpp
     src/protocol/RpcCodec.cpp
+    src/rpc/ServiceDispatcher.cpp
+    src/rpc/RpcServer.cpp
 )
 
 target_include_directories(minirpc PUBLIC
@@ -58,6 +60,9 @@ add_executable(test_rpc_codec
 add_executable(test_protobuf
     tests/serialization/test_protobuf.cpp
 )
+add_executable(test_rpc_server
+    tests/rpc/test_rpc_server.cpp
+)
 
 target_link_libraries(test_socket PRIVATE
     minirpc
@@ -80,6 +85,9 @@ target_link_libraries(test_rpc_codec PRIVATE
 target_link_libraries(test_protobuf PRIVATE
     calculator_proto
 )
+target_link_libraries(test_rpc_server PRIVATE
+    minirpc
+)
 
 
 add_test(NAME test_socket COMMAND test_socket)
@@ -89,3 +97,4 @@ add_test(NAME test_tcp COMMAND test_tcp)
 add_test(NAME test_event_loop COMMAND test_event_loop)
 add_test(NAME test_rpc_codec COMMAND test_rpc_codec)
 add_test(NAME test_protobuf COMMAND test_protobuf)
+add_test(NAME test_rpc_server COMMAND test_rpc_server)

@@ -24,6 +24,7 @@ public:
 
     void Start();
     void Send(const std::string& data);
+    void Close();
 
     void SetMessageCallback(MessageCallback cb);
     void SetCloseCallback(CloseCallback cb);
@@ -44,6 +45,7 @@ private:
 
     MessageCallback message_callback_;
     CloseCallback close_callback_;
+    bool closed_;
 };
 
 }
