@@ -8,7 +8,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(Threads REQUIRED)
 
 include(cmake/Protobuf.cmake)
-add_subdirectory(examples/services/calculator)
 
 add_library(minirpc
     src/net/InetAddress.cpp
@@ -27,6 +26,8 @@ add_library(minirpc
     src/protocol/RpcCodec.cpp
     src/rpc/ServiceDispatcher.cpp
     src/rpc/RpcServer.cpp
+    src/rpc/PendingCalls.cpp
+    src/rpc/RpcClient.cpp
 )
 
 target_include_directories(minirpc PUBLIC
@@ -36,6 +37,8 @@ target_include_directories(minirpc PUBLIC
 target_link_libraries(minirpc PUBLIC
     Threads::Threads
 )
+
+add_subdirectory(examples/services/calculator)
 
 enable_testing()
 
@@ -63,6 +66,9 @@ add_executable(test_protobuf
 add_executable(test_rpc_server
     tests/rpc/test_rpc_server.cpp
 )
+add_executable(test_rpc_client
+    tests/rpc/test_rpc_client.cpp
+)
 
 target_link_libraries(test_socket PRIVATE
     minirpc
@@ -88,6 +94,9 @@ target_link_libraries(test_protobuf PRIVATE
 target_link_libraries(test_rpc_server PRIVATE
     minirpc
 )
+target_link_libraries(test_rpc_client PRIVATE
+    calculator_rpc
+)
 
 
 add_test(NAME test_socket COMMAND test_socket)
@@ -98,3 +107,4 @@ add_test(NAME test_event_loop COMMAND test_event_loop)
 add_test(NAME test_rpc_codec COMMAND test_rpc_codec)
 add_test(NAME test_protobuf COMMAND test_protobuf)
 add_test(NAME test_rpc_server COMMAND test_rpc_server)
+add_test(NAME test_rpc_client COMMAND test_rpc_client)

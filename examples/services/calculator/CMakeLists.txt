@@ -43,3 +43,19 @@ target_include_directories(calculator_proto PUBLIC
 target_link_libraries(calculator_proto PUBLIC
     protobuf::libprotobuf
 )
+
+add_library(calculator_rpc
+    CalculatorService.cpp
+    CalculatorService.h
+    CalculatorStub.cpp
+    CalculatorStub.h
+)
+
+target_include_directories(calculator_rpc PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+target_link_libraries(calculator_rpc PUBLIC
+    calculator_proto
+    minirpc
+)
