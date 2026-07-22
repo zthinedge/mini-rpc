@@ -19,6 +19,7 @@ namespace minirpc::rpc{
 class RpcClient{
 public:
     using ResponseFuture=PendingCalls::ResponseFuture;
+    using ResponseCallback=PendingCalls::ResponseCallback;
     using ConnectionCallback=std::function<void()>;
     using CloseCallback=std::function<void()>;
     using ErrorCallback=std::function<void(int)>;
@@ -30,10 +31,23 @@ public:
 
     void Connect();
 
-    ResponseFuture Call(
+    protocol::RpcMessage Call(
         std::string service_name,
         std::string method_name,
         std::string payload
+    );
+
+    ResponseFuture FutureCall(
+        std::string service_name,
+        std::string method_name,
+        std::string payload
+    );
+
+    void AsyncCall(
+        std::string service_name,
+        std::string method_name,
+        std::string payload,
+        ResponseCallback callback
     );
 
     bool IsConnected()const noexcept;
@@ -44,6 +58,17 @@ public:
 
 private:
     std::uint64_t NextRequestId()noexcept;
+
+    protocol::RpcMessage MakeRequest(
+        std::string service_name,
+        std::string method_name,
+        std::string payload
+    );
+
+    void SendRequest(
+        std::uint64_t request_id,
+        std::string bytes
+    );
 
     void HandleMessage(
         net::TcpConnection* connection,

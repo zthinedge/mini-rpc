@@ -28,7 +28,7 @@ AddResponse CalculatorStub::Add(const AddRequest& request)const{
         kCalculatorServiceName,
         kAddMethodName,
         std::move(payload)
-    ).get();
+    );
 
     if(response.meta.status_code!=protocol::StatusCode::Ok){
         throw std::runtime_error(response.meta.error_text);

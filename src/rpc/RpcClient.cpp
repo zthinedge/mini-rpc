@@ -4,6 +4,7 @@
 #include "minirpc/net/EventLoop.h"
 #include "minirpc/net/TcpConnection.h"
 
+#include <stdexcept>
 #include <utility>
 
 namespace minirpc::rpc{
@@ -62,7 +63,59 @@ void RpcClient::Connect(){
     });
 }
 
-RpcClient::ResponseFuture RpcClient::Call(
+protocol::RpcMessage RpcClient::Call(
+    std::string service_name,
+    std::string method_name,
+    std::string payload
+){
+    if(loop_->IsInLoopThread()){
+        throw std::logic_error(
+            "synchronous rpc call in EventLoop thread"
+        );
+    }
+
+    return FutureCall(
+        std::move(service_name),
+        std::move(method_name),
+        std::move(payload)
+    ).get();
+}
+
+RpcClient::ResponseFuture RpcClient::FutureCall(
+    std::string service_name,
+    std::string method_name,
+    std::string payload
+){
+    protocol::RpcMessage request=MakeRequest(
+        std::move(service_name),
+        std::move(method_name),
+        std::move(payload)
+    );
+
+    std::string bytes=codec_.Encode(request);
+    ResponseFuture future=pending_calls_.Add(request.request_id);
+    SendRequest(request.request_id,std::move(bytes));
+    return future;
+}
+
+void RpcClient::AsyncCall(
+    std::string service_name,
+    std::string method_name,
+    std::string payload,
+    ResponseCallback callback
+){
+    protocol::RpcMessage request=MakeRequest(
+        std::move(service_name),
+        std::move(method_name),
+        std::move(payload)
+    );
+
+    std::string bytes=codec_.Encode(request);
+    pending_calls_.Add(request.request_id,std::move(callback));
+    SendRequest(request.request_id,std::move(bytes));
+}
+
+protocol::RpcMessage RpcClient::MakeRequest(
     std::string service_name,
     std::string method_name,
     std::string payload
@@ -73,11 +126,13 @@ RpcClient::ResponseFuture RpcClient::Call(
     request.meta.service_name=std::move(service_name);
     request.meta.method_name=std::move(method_name);
     request.payload=std::move(payload);
+    return request;
+}
 
-    std::string bytes=codec_.Encode(request);
-    ResponseFuture future=pending_calls_.Add(request.request_id);
-    std::uint64_t request_id=request.request_id;
-
+void RpcClient::SendRequest(
+    std::uint64_t request_id,
+    std::string bytes
+){
     loop_->RunInLoop(
         [this,request_id,bytes=std::move(bytes)](){
             if(!tcp_client_.IsConnected()){
@@ -92,8 +147,6 @@ RpcClient::ResponseFuture RpcClient::Call(
             tcp_client_.Send(bytes);
         }
     );
-
-    return future;
 }
 
 bool RpcClient::IsConnected()const noexcept{

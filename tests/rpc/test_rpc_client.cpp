@@ -1,7 +1,9 @@
 #include "CalculatorService.h"
 #include "CalculatorStub.h"
+#include "minirpc/net/Buffer.h"
 #include "minirpc/net/EventLoop.h"
 #include "minirpc/net/InetAddress.h"
+#include "minirpc/protocol/RpcCodec.h"
 #include "minirpc/protocol/RpcMessage.h"
 #include "minirpc/rpc/PendingCalls.h"
 #include "minirpc/rpc/RpcClient.h"
@@ -9,6 +11,8 @@
 
 #include <arpa/inet.h>
 #include <cassert>
+#include <cerrno>
+#include <chrono>
 #include <cstdint>
 #include <future>
 #include <netinet/in.h>
@@ -71,20 +75,155 @@ protocol::RpcMessage MakeResponse(
     return response;
 }
 
+void SendAll(int fd,const std::string& bytes){
+    std::size_t sent=0;
+
+    while(sent<bytes.size()){
+        ssize_t size=::send(
+            fd,
+            bytes.data()+sent,
+            bytes.size()-sent,
+            MSG_NOSIGNAL
+        );
+
+        if(size==-1&&errno==EINTR){
+            continue;
+        }
+
+        assert(size>0);
+        sent+=static_cast<std::size_t>(size);
+    }
+}
+
+std::vector<protocol::RpcMessage> ReadRequests(
+    int fd,
+    std::size_t count,
+    net::Buffer* buffer
+){
+    protocol::RpcCodec codec;
+    std::vector<protocol::RpcMessage> requests;
+
+    while(requests.size()<count){
+        protocol::RpcMessage request;
+        std::string error;
+        protocol::DecodeStatus status=codec.DecodeOne(
+            buffer,
+            &request,
+            &error
+        );
+
+        if(status==protocol::DecodeStatus::Ok){
+            requests.push_back(std::move(request));
+            continue;
+        }
+
+        assert(status==protocol::DecodeStatus::NeedMoreData);
+
+        char data[4096];
+        ssize_t size=::recv(fd,data,sizeof(data),0);
+
+        if(size==-1&&errno==EINTR){
+            continue;
+        }
+
+        assert(size>0);
+        buffer->Append(data,static_cast<std::size_t>(size));
+    }
+
+    return requests;
+}
+
+void RunOutOfOrderServer(
+    std::uint16_t port,
+    std::promise<void>* ready
+){
+    int listen_fd=::socket(AF_INET,SOCK_STREAM,0);
+    assert(listen_fd!=-1);
+
+    int reuse=1;
+    assert(::setsockopt(
+        listen_fd,
+        SOL_SOCKET,
+        SO_REUSEADDR,
+        &reuse,
+        sizeof(reuse)
+    )==0);
+
+    sockaddr_in addr{};
+    addr.sin_family=AF_INET;
+    addr.sin_addr.s_addr=htonl(INADDR_LOOPBACK);
+    addr.sin_port=htons(port);
+
+    assert(::bind(
+        listen_fd,
+        reinterpret_cast<sockaddr*>(&addr),
+        sizeof(addr)
+    )==0);
+    assert(::listen(listen_fd,1)==0);
+    ready->set_value();
+
+    int fd=::accept(listen_fd,nullptr,nullptr);
+    assert(fd!=-1);
+
+    net::Buffer buffer;
+    protocol::RpcCodec codec;
+    auto requests=ReadRequests(fd,2,&buffer);
+
+    protocol::RpcMessage second=MakeResponse(
+        requests[1].request_id,
+        requests[1].payload
+    );
+    protocol::RpcMessage first=MakeResponse(
+        requests[0].request_id,
+        requests[0].payload
+    );
+
+    SendAll(fd,codec.Encode(second));
+    SendAll(fd,codec.Encode(first));
+
+    ReadRequests(fd,2,&buffer);
+    ::close(fd);
+    ::close(listen_fd);
+}
+
 void TestPendingCalls(){
     rpc::PendingCalls calls;
     auto first=calls.Add(1);
     auto second=calls.Add(2);
+    std::promise<protocol::RpcMessage> callback_result;
 
-    assert(calls.Size()==2);
+    calls.Add(3,[&callback_result](protocol::RpcMessage response){
+        callback_result.set_value(std::move(response));
+    });
+
+    assert(calls.Size()==3);
     assert(calls.Complete(MakeResponse(2,"second")));
-    assert(calls.Size()==1);
+    assert(calls.Size()==2);
+    assert(calls.Complete(MakeResponse(3,"callback")));
     assert(calls.Complete(MakeResponse(1,"first")));
     assert(calls.Size()==0);
 
     assert(first.get().payload=="first");
     assert(second.get().payload=="second");
+    assert(callback_result.get_future().get().payload=="callback");
     assert(!calls.Complete(MakeResponse(3,"unknown")));
+
+    auto failed_future=calls.Add(4);
+    std::promise<protocol::RpcMessage> failed_callback;
+    calls.Add(5,[&failed_callback](protocol::RpcMessage response){
+        failed_callback.set_value(std::move(response));
+    });
+
+    calls.FailAll(
+        protocol::StatusCode::InternalError,
+        "connection closed"
+    );
+
+    assert(calls.Size()==0);
+    assert(failed_future.get().meta.status_code==
+           protocol::StatusCode::InternalError);
+    assert(failed_callback.get_future().get().meta.status_code==
+           protocol::StatusCode::InternalError);
 }
 
 void TestCalculatorRpc(){
@@ -161,10 +300,101 @@ void TestCalculatorRpc(){
     server_thread.join();
 }
 
+void TestOutOfOrderAndDisconnect(){
+    std::uint16_t port=FindFreePort();
+    std::promise<void>server_ready;
+    std::thread server_thread(
+        RunOutOfOrderServer,
+        port,
+        &server_ready
+    );
+    server_ready.get_future().get();
+
+    std::promise<rpc::RpcClient*>client_ready;
+    std::promise<net::EventLoop*>loop_ready;
+    std::thread client_thread(
+        [port,&client_ready,&loop_ready](){
+            net::EventLoop loop;
+            net::InetAddress address("127.0.0.1",port);
+            rpc::RpcClient client(&loop,address);
+
+            client.SetConnectionCallback([&](){
+                client_ready.set_value(&client);
+            });
+
+            loop_ready.set_value(&loop);
+            client.Connect();
+            loop.Loop();
+        }
+    );
+
+    rpc::RpcClient*client=client_ready.get_future().get();
+    net::EventLoop*loop=loop_ready.get_future().get();
+
+    auto future=client->FutureCall(
+        "TestService",
+        "Future",
+        "future response"
+    );
+
+    std::promise<protocol::RpcMessage>callback_result;
+    client->AsyncCall(
+        "TestService",
+        "Callback",
+        "callback response",
+        [&callback_result](protocol::RpcMessage response){
+            callback_result.set_value(std::move(response));
+        }
+    );
+
+    auto callback_future=callback_result.get_future();
+    assert(callback_future.wait_for(std::chrono::seconds(2))==
+           std::future_status::ready);
+    assert(future.wait_for(std::chrono::seconds(2))==
+           std::future_status::ready);
+    assert(callback_future.get().payload=="callback response");
+    assert(future.get().payload=="future response");
+
+    auto disconnected_future=client->FutureCall(
+        "TestService",
+        "PendingFuture",
+        ""
+    );
+
+    std::promise<protocol::RpcMessage>disconnected_callback;
+    client->AsyncCall(
+        "TestService",
+        "PendingCallback",
+        "",
+        [&disconnected_callback](protocol::RpcMessage response){
+            disconnected_callback.set_value(std::move(response));
+        }
+    );
+
+    auto disconnected_callback_future=
+        disconnected_callback.get_future();
+
+    assert(disconnected_future.wait_for(std::chrono::seconds(2))==
+           std::future_status::ready);
+    assert(disconnected_callback_future.wait_for(
+               std::chrono::seconds(2)
+           )==std::future_status::ready);
+
+    assert(disconnected_future.get().meta.status_code==
+           protocol::StatusCode::InternalError);
+    assert(disconnected_callback_future.get().meta.status_code==
+           protocol::StatusCode::InternalError);
+
+    loop->Stop();
+    client_thread.join();
+    server_thread.join();
+}
+
 }
 
 int main(){
     TestPendingCalls();
     TestCalculatorRpc();
+    TestOutOfOrderAndDisconnect();
     return 0;
 }
