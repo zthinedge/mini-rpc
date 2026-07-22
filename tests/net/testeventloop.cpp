@@ -91,11 +91,62 @@ void TestStopWakesPoller(){
     assert(elapsed<std::chrono::seconds(1));
 }
 
+void TestTimerQueue(){
+    EventLoop loop;
+    bool fired=false;
+    bool cancelled_fired=false;
+
+    EventLoop::TimerId cancelled=loop.RunAfter(
+        std::chrono::milliseconds(5),
+        [&cancelled_fired](){
+            cancelled_fired=true;
+        }
+    );
+    loop.CancelTimer(cancelled);
+
+    auto start=std::chrono::steady_clock::now();
+    loop.RunAfter(std::chrono::milliseconds(20),[&](){
+        fired=true;
+        loop.Stop();
+    });
+    loop.Loop();
+
+    auto elapsed=std::chrono::steady_clock::now()-start;
+    assert(fired);
+    assert(!cancelled_fired);
+    assert(elapsed>=std::chrono::milliseconds(15));
+}
+
+void TestCrossThreadTimer(){
+    std::promise<EventLoop*>loop_ready;
+    std::promise<bool>timer_done;
+
+    std::thread loop_thread([&loop_ready](){
+        EventLoop loop;
+        loop_ready.set_value(&loop);
+        loop.Loop();
+    });
+
+    EventLoop*loop=loop_ready.get_future().get();
+    loop->RunAfter(std::chrono::milliseconds(10),[loop,&timer_done](){
+        timer_done.set_value(loop->IsInLoopThread());
+        loop->Stop();
+    });
+
+    auto result=timer_done.get_future();
+    assert(result.wait_for(std::chrono::seconds(2))==
+           std::future_status::ready);
+    assert(result.get());
+    loop_thread.join();
+}
+
 }
 
 int main(){
     TestRunInLoop();
     TestCrossThreadQueue();
     TestStopWakesPoller();
+    TestTimerQueue();
+    TestCrossThreadTimer();
     return 0;
 }

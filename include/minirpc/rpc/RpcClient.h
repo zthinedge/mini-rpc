@@ -2,11 +2,13 @@
 
 #include "minirpc/net/TcpClient.h"
 #include "minirpc/protocol/RpcCodec.h"
+#include "minirpc/rpc/CallOptions.h"
 #include "minirpc/rpc/PendingCalls.h"
 
 #include <atomic>
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <string>
 
 namespace minirpc::net{
@@ -34,20 +36,23 @@ public:
     protocol::RpcMessage Call(
         std::string service_name,
         std::string method_name,
-        std::string payload
+        std::string payload,
+        CallOptions options={}
     );
 
     ResponseFuture FutureCall(
         std::string service_name,
         std::string method_name,
-        std::string payload
+        std::string payload,
+        CallOptions options={}
     );
 
     void AsyncCall(
         std::string service_name,
         std::string method_name,
         std::string payload,
-        ResponseCallback callback
+        ResponseCallback callback,
+        CallOptions options={}
     );
 
     bool IsConnected()const noexcept;
@@ -57,12 +62,39 @@ public:
     void SetErrorCallback(ErrorCallback callback);
 
 private:
+    struct CallState{
+        std::string service_name;
+        std::string method_name;
+        std::string payload;
+        std::uint64_t deadline_us=0;
+        std::uint32_t max_retries=0;
+        std::uint32_t attempts=0;
+        ResponseCallback completion;
+    };
+
     std::uint64_t NextRequestId()noexcept;
 
-    protocol::RpcMessage MakeRequest(
+    void StartCall(
         std::string service_name,
         std::string method_name,
-        std::string payload
+        std::string payload,
+        CallOptions options,
+        ResponseCallback completion
+    );
+
+    void StartAttempt(const std::shared_ptr<CallState>& state);
+    void HandleAttemptResponse(
+        const std::shared_ptr<CallState>& state,
+        protocol::RpcMessage response
+    );
+
+    protocol::RpcMessage MakeRequest(
+        const CallState& state
+    );
+
+    void AddTimeout(
+        std::uint64_t request_id,
+        std::uint64_t deadline_us
     );
 
     void SendRequest(

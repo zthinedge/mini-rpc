@@ -321,17 +321,16 @@ TCP 是字节流，不是消息队列。一次 `send` 不等于一次 `recv`：
 
 ```text
 uint32 magic        // 固定值，例如 0x4d525043，表示 "MRPC"
-uint8  version      // 第一版为 1
+uint8  version      // 当前deadline协议为 2
 uint8  message_type // REQUEST 或 RESPONSE
 uint8  codec        // 第一版为 MINI_PROTOBUF
 uint8  flags        // 第一版填 0，后续可表示压缩、校验、trace 等扩展
 uint64 request_id   // 请求响应匹配
 uint32 meta_len     // meta 字节数
 uint32 payload_len  // payload 字节数
-uint32 reserved     // 第一版填 0，后续扩展
 ```
 
-这个头是 28 字节。如果实现时想避免非对齐和结构体 padding，不要直接 `reinterpret_cast<RpcHeader*>`，而是手动按网络字节序读写每个字段。
+这个头是 24 字节。实现时不要直接 `reinterpret_cast<RpcHeader*>`，而是手动按网络字节序读写每个字段。
 
 `meta` 放 RPC 元信息，第一版可以用 mini-protobuf 编码：
 
@@ -340,7 +339,7 @@ service_name
 method_name
 status_code
 error_text
-timeout_ms
+deadline_us
 ```
 
 `payload` 放业务请求或响应，也用 mini-protobuf 编码。
@@ -484,7 +483,7 @@ Call()
 
 ### 7.4 超时控制
 
-超时属于调用层，不属于协议层或网络层。
+超时由调用层发起，网络层的 `TimerQueue` 负责定时唤醒，协议层携带绝对 `deadline_us`。
 
 客户端：
 
@@ -492,8 +491,9 @@ Call()
 2. 等待 response 时最多等到 deadline。
 3. 超时后从 pending map 删除。
 4. 返回 `TIMEOUT`。
+5. Retry始终复用第一次计算出的总deadline，不能重新计算超时时间。
 
-服务端第一版不做强制取消。即使客户端超时，服务端可能仍然执行完成并返回；客户端收到迟到响应后丢弃。
+服务端在分发业务方法前检查deadline，已经过期的请求直接返回 `TIMEOUT`。已经开始执行的业务方法暂不支持强制取消；客户端收到迟到响应后丢弃。
 
 ### 7.5 调用层性能边界
 

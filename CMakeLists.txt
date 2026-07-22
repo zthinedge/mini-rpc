@@ -16,6 +16,7 @@ add_library(minirpc
     src/net/Channel.cpp
     src/net/Poller.cpp
     src/net/EventLoop.cpp
+    src/net/TimerQueue.cpp
     src/net/Acceptor.cpp
     src/net/Connector.cpp
     src/net/TcpClient.cpp

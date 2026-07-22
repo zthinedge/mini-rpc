@@ -16,7 +16,7 @@ void SetError(std::string* error,const std::string& value){
 
 bool IsValidStatusCode(std::uint32_t value){
     return value<=static_cast<std::uint32_t>(
-        StatusCode::InternalError
+        StatusCode::Timeout
     );
 }
 
@@ -49,7 +49,7 @@ bool ReadString(
 }
 
 std::string RpcMetaCodec::Encode(const RpcMeta& meta)const{
-    std::size_t total_size=16;
+    std::size_t total_size=24;
 
     const std::string* fields[]={
         &meta.service_name,
@@ -95,6 +95,8 @@ std::string RpcMetaCodec::Encode(const RpcMeta& meta)const{
         static_cast<std::uint32_t>(meta.error_text.size())
     );
     output.append(meta.error_text);
+
+    AppendUint64(&output,meta.deadline_us);
 
     return output;
 }
@@ -143,6 +145,14 @@ bool RpcMetaCodec::Decode(
         SetError(error,"invalid rpc error text");
         return false;
     }
+
+    if(static_cast<std::size_t>(end-cursor)<8){
+        SetError(error,"invalid rpc deadline");
+        return false;
+    }
+
+    decoded.deadline_us=ReadUint64(cursor);
+    cursor+=8;
 
     if(cursor!=end){
         SetError(error,"unexpected rpc meta bytes");

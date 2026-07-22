@@ -1,5 +1,6 @@
 #include "minirpc/rpc/PendingCalls.h"
 
+#include <chrono>
 #include <stdexcept>
 #include <utility>
 
@@ -19,12 +20,28 @@ protocol::RpcMessage MakeErrorResponse(
     return response;
 }
 
+std::uint64_t CurrentTimeMicros(){
+    return static_cast<std::uint64_t>(
+        std::chrono::duration_cast<std::chrono::microseconds>(
+            std::chrono::system_clock::now().time_since_epoch()
+        ).count()
+    );
+}
+
 }
 
 PendingCalls::ResponseFuture PendingCalls::Add(
     std::uint64_t request_id
 ){
+    return Add(request_id,0);
+}
+
+PendingCalls::ResponseFuture PendingCalls::Add(
+    std::uint64_t request_id,
+    std::uint64_t deadline_us
+){
     PendingCall call;
+    call.deadline_us=deadline_us;
     ResponseFuture future=call.promise.get_future();
     Insert(request_id,std::move(call));
 
@@ -35,17 +52,46 @@ void PendingCalls::Add(
     std::uint64_t request_id,
     ResponseCallback callback
 ){
+    Add(request_id,0,std::move(callback));
+}
+
+void PendingCalls::Add(
+    std::uint64_t request_id,
+    std::uint64_t deadline_us,
+    ResponseCallback callback
+){
     if(!callback){
         throw std::invalid_argument("rpc response callback is empty");
     }
 
     PendingCall call;
+    call.deadline_us=deadline_us;
     call.callback=std::move(callback);
     Insert(request_id,std::move(call));
 }
 
+bool PendingCalls::SetTimeoutCancel(
+    std::uint64_t request_id,
+    std::function<void()> cancel
+){
+    if(!cancel){
+        throw std::invalid_argument("rpc timeout cancel is empty");
+    }
+
+    std::lock_guard<std::mutex>lock(mutex_);
+    auto pending=calls_.find(request_id);
+
+    if(pending==calls_.end()){
+        return false;
+    }
+
+    pending->second.cancel_timeout=std::move(cancel);
+    return true;
+}
+
 bool PendingCalls::Complete(protocol::RpcMessage response){
     PendingCall call;
+    bool expired=false;
 
     {
         std::lock_guard<std::mutex>lock(mutex_);
@@ -55,11 +101,47 @@ bool PendingCalls::Complete(protocol::RpcMessage response){
             return false;
         }
 
+        expired=pending->second.deadline_us!=0&&
+                CurrentTimeMicros()>=pending->second.deadline_us;
         call=std::move(pending->second);
         calls_.erase(pending);
     }
 
+    if(expired){
+        response=MakeErrorResponse(
+            response.request_id,
+            protocol::RpcError::Timeout,
+            "rpc deadline exceeded"
+        );
+    }
+
     Finish(std::move(call),std::move(response));
+    return true;
+}
+
+bool PendingCalls::Expire(std::uint64_t request_id){
+    PendingCall call;
+
+    {
+        std::lock_guard<std::mutex>lock(mutex_);
+        auto pending=calls_.find(request_id);
+
+        if(pending==calls_.end()||pending->second.deadline_us==0){
+            return false;
+        }
+
+        call=std::move(pending->second);
+        calls_.erase(pending);
+    }
+
+    Finish(
+        std::move(call),
+        MakeErrorResponse(
+            request_id,
+            protocol::RpcError::Timeout,
+            "rpc deadline exceeded"
+        )
+    );
     return true;
 }
 
@@ -117,6 +199,13 @@ void PendingCalls::Finish(
     PendingCall call,
     protocol::RpcMessage response
 )noexcept{
+    if(call.cancel_timeout){
+        try{
+            call.cancel_timeout();
+        }catch(...){
+        }
+    }
+
     try{
         if(call.callback){
             call.callback(std::move(response));

@@ -18,6 +18,7 @@
 #include <netinet/in.h>
 #include <string>
 #include <sys/socket.h>
+#include <sys/time.h>
 #include <thread>
 #include <unistd.h>
 #include <vector>
@@ -36,6 +37,14 @@ public:
         response->set_result(request.a()+request.b());
     }
 };
+
+std::uint64_t CurrentTimeMicros(){
+    return static_cast<std::uint64_t>(
+        std::chrono::duration_cast<std::chrono::microseconds>(
+            std::chrono::system_clock::now().time_since_epoch()
+        ).count()
+    );
+}
 
 std::uint16_t FindFreePort(){
     int fd=::socket(AF_INET,SOCK_STREAM,0);
@@ -95,6 +104,59 @@ void SendAll(int fd,const std::string& bytes){
     }
 }
 
+bool TrySendAll(int fd,const std::string& bytes){
+    std::size_t sent=0;
+
+    while(sent<bytes.size()){
+        ssize_t size=::send(
+            fd,
+            bytes.data()+sent,
+            bytes.size()-sent,
+            MSG_NOSIGNAL
+        );
+
+        if(size==-1&&errno==EINTR){
+            continue;
+        }
+
+        if(size<=0){
+            return false;
+        }
+
+        sent+=static_cast<std::size_t>(size);
+    }
+
+    return true;
+}
+
+int CreateListener(std::uint16_t port,std::promise<void>* ready){
+    int listen_fd=::socket(AF_INET,SOCK_STREAM,0);
+    assert(listen_fd!=-1);
+
+    int reuse=1;
+    assert(::setsockopt(
+        listen_fd,
+        SOL_SOCKET,
+        SO_REUSEADDR,
+        &reuse,
+        sizeof(reuse)
+    )==0);
+
+    sockaddr_in addr{};
+    addr.sin_family=AF_INET;
+    addr.sin_addr.s_addr=htonl(INADDR_LOOPBACK);
+    addr.sin_port=htons(port);
+
+    assert(::bind(
+        listen_fd,
+        reinterpret_cast<sockaddr*>(&addr),
+        sizeof(addr)
+    )==0);
+    assert(::listen(listen_fd,1)==0);
+    ready->set_value();
+    return listen_fd;
+}
+
 std::vector<protocol::RpcMessage> ReadRequests(
     int fd,
     std::size_t count,
@@ -133,34 +195,47 @@ std::vector<protocol::RpcMessage> ReadRequests(
     return requests;
 }
 
+bool ReadOneRequest(
+    int fd,
+    net::Buffer* buffer,
+    protocol::RpcMessage* request
+){
+    protocol::RpcCodec codec;
+
+    while(true){
+        std::string error;
+        protocol::DecodeStatus status=codec.DecodeOne(
+            buffer,
+            request,
+            &error
+        );
+
+        if(status==protocol::DecodeStatus::Ok){
+            return true;
+        }
+
+        assert(status==protocol::DecodeStatus::NeedMoreData);
+
+        char data[4096];
+        ssize_t size=::recv(fd,data,sizeof(data),0);
+
+        if(size==-1&&errno==EINTR){
+            continue;
+        }
+
+        if(size<=0){
+            return false;
+        }
+
+        buffer->Append(data,static_cast<std::size_t>(size));
+    }
+}
+
 void RunOutOfOrderServer(
     std::uint16_t port,
     std::promise<void>* ready
 ){
-    int listen_fd=::socket(AF_INET,SOCK_STREAM,0);
-    assert(listen_fd!=-1);
-
-    int reuse=1;
-    assert(::setsockopt(
-        listen_fd,
-        SOL_SOCKET,
-        SO_REUSEADDR,
-        &reuse,
-        sizeof(reuse)
-    )==0);
-
-    sockaddr_in addr{};
-    addr.sin_family=AF_INET;
-    addr.sin_addr.s_addr=htonl(INADDR_LOOPBACK);
-    addr.sin_port=htons(port);
-
-    assert(::bind(
-        listen_fd,
-        reinterpret_cast<sockaddr*>(&addr),
-        sizeof(addr)
-    )==0);
-    assert(::listen(listen_fd,1)==0);
-    ready->set_value();
+    int listen_fd=CreateListener(port,ready);
 
     int fd=::accept(listen_fd,nullptr,nullptr);
     assert(fd!=-1);
@@ -184,6 +259,127 @@ void RunOutOfOrderServer(
     ReadRequests(fd,2,&buffer);
     ::close(fd);
     ::close(listen_fd);
+}
+
+void RunTimeoutServer(
+    std::uint16_t port,
+    std::promise<void>* ready,
+    std::promise<std::vector<protocol::RpcMessage>>* received
+){
+    int listen_fd=CreateListener(port,ready);
+    int fd=::accept(listen_fd,nullptr,nullptr);
+    assert(fd!=-1);
+
+    net::Buffer buffer;
+    received->set_value(ReadRequests(fd,2,&buffer));
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    ::close(fd);
+    ::close(listen_fd);
+}
+
+void RunRetrySuccessServer(
+    std::uint16_t port,
+    std::promise<void>* ready,
+    std::promise<std::vector<protocol::RpcMessage>>* received
+){
+    int listen_fd=CreateListener(port,ready);
+    int fd=::accept(listen_fd,nullptr,nullptr);
+    assert(fd!=-1);
+
+    net::Buffer buffer;
+    protocol::RpcCodec codec;
+    std::vector<protocol::RpcMessage> requests;
+
+    for(int attempt=0;attempt<3;attempt++){
+        protocol::RpcMessage request;
+        assert(ReadOneRequest(fd,&buffer,&request));
+        requests.push_back(request);
+
+        protocol::RpcMessage response=MakeResponse(
+            request.request_id,
+            request.payload
+        );
+
+        if(attempt<2){
+            response.meta.status_code=
+                protocol::RpcError::InternalError;
+            response.meta.error_text="retryable failure";
+        }
+
+        SendAll(fd,codec.Encode(response));
+    }
+
+    received->set_value(std::move(requests));
+    ::close(fd);
+    ::close(listen_fd);
+}
+
+void RunRetryDeadlineServer(
+    std::uint16_t port,
+    std::promise<void>* ready,
+    std::promise<std::vector<protocol::RpcMessage>>* received
+){
+    int listen_fd=CreateListener(port,ready);
+    int fd=::accept(listen_fd,nullptr,nullptr);
+    assert(fd!=-1);
+
+    timeval timeout{};
+    timeout.tv_sec=2;
+    assert(::setsockopt(
+        fd,
+        SOL_SOCKET,
+        SO_RCVTIMEO,
+        &timeout,
+        sizeof(timeout)
+    )==0);
+
+    net::Buffer buffer;
+    protocol::RpcCodec codec;
+    std::vector<protocol::RpcMessage> requests;
+
+    while(true){
+        protocol::RpcMessage request;
+        if(!ReadOneRequest(fd,&buffer,&request)){
+            break;
+        }
+
+        requests.push_back(request);
+        std::this_thread::sleep_for(std::chrono::milliseconds(15));
+
+        protocol::RpcMessage response=MakeResponse(
+            request.request_id,
+            ""
+        );
+        response.meta.status_code=protocol::RpcError::InternalError;
+        response.meta.error_text="retryable failure";
+
+        if(!TrySendAll(fd,codec.Encode(response))){
+            break;
+        }
+    }
+
+    received->set_value(std::move(requests));
+    ::close(fd);
+    ::close(listen_fd);
+}
+
+void RunClient(
+    std::uint16_t port,
+    std::promise<rpc::RpcClient*>* client_ready,
+    std::promise<net::EventLoop*>* loop_ready
+){
+    net::EventLoop loop;
+    net::InetAddress address("127.0.0.1",port);
+    rpc::RpcClient client(&loop,address);
+
+    client.SetConnectionCallback([&](){
+        client_ready->set_value(&client);
+    });
+
+    loop_ready->set_value(&loop);
+    client.Connect();
+    loop.Loop();
 }
 
 void TestPendingCalls(){
@@ -224,6 +420,17 @@ void TestPendingCalls(){
            protocol::StatusCode::InternalError);
     assert(failed_callback.get_future().get().meta.status_code==
            protocol::StatusCode::InternalError);
+
+    bool timeout_cancelled=false;
+    auto timeout_future=calls.Add(6,1);
+    assert(calls.SetTimeoutCancel(6,[&timeout_cancelled](){
+        timeout_cancelled=true;
+    }));
+    assert(calls.Expire(6));
+    assert(calls.Size()==0);
+    assert(timeout_cancelled);
+    assert(timeout_future.get().meta.status_code==
+           protocol::RpcError::Timeout);
 }
 
 void TestCalculatorRpc(){
@@ -390,11 +597,189 @@ void TestOutOfOrderAndDisconnect(){
     server_thread.join();
 }
 
+void TestClientTimeout(){
+    std::uint16_t port=FindFreePort();
+    std::promise<void>server_ready;
+    std::promise<std::vector<protocol::RpcMessage>>received;
+    auto received_future=received.get_future();
+    std::thread server_thread(
+        RunTimeoutServer,
+        port,
+        &server_ready,
+        &received
+    );
+    server_ready.get_future().get();
+
+    std::promise<rpc::RpcClient*>client_ready;
+    std::promise<net::EventLoop*>loop_ready;
+    std::thread client_thread(
+        RunClient,
+        port,
+        &client_ready,
+        &loop_ready
+    );
+
+    rpc::RpcClient*client=client_ready.get_future().get();
+    net::EventLoop*loop=loop_ready.get_future().get();
+    rpc::CallOptions timeout_options;
+    timeout_options.timeout=std::chrono::milliseconds(20);
+
+    auto future=client->FutureCall(
+        "TimeoutService",
+        "Future",
+        "",
+        timeout_options
+    );
+
+    rpc::CallOptions deadline_options;
+    deadline_options.timeout=std::chrono::seconds(1);
+    deadline_options.deadline_us=CurrentTimeMicros()+20000;
+
+    std::promise<protocol::RpcMessage>callback_result;
+    auto callback_future=callback_result.get_future();
+    client->AsyncCall(
+        "TimeoutService",
+        "Callback",
+        "",
+        [&callback_result](protocol::RpcMessage response){
+            callback_result.set_value(std::move(response));
+        },
+        deadline_options
+    );
+
+    assert(future.wait_for(std::chrono::seconds(2))==
+           std::future_status::ready);
+    assert(callback_future.wait_for(std::chrono::seconds(2))==
+           std::future_status::ready);
+    assert(future.get().meta.status_code==protocol::RpcError::Timeout);
+    assert(callback_future.get().meta.status_code==
+           protocol::RpcError::Timeout);
+
+    auto requests=received_future.get();
+    assert(requests.size()==2);
+    assert(requests[0].meta.deadline_us!=0);
+    assert(requests[1].meta.deadline_us!=0);
+
+    loop->Stop();
+    client_thread.join();
+    server_thread.join();
+}
+
+void TestRetrySuccess(){
+    std::uint16_t port=FindFreePort();
+    std::promise<void>server_ready;
+    std::promise<std::vector<protocol::RpcMessage>>received;
+    auto received_future=received.get_future();
+    std::thread server_thread(
+        RunRetrySuccessServer,
+        port,
+        &server_ready,
+        &received
+    );
+    server_ready.get_future().get();
+
+    std::promise<rpc::RpcClient*>client_ready;
+    std::promise<net::EventLoop*>loop_ready;
+    std::thread client_thread(
+        RunClient,
+        port,
+        &client_ready,
+        &loop_ready
+    );
+
+    rpc::RpcClient*client=client_ready.get_future().get();
+    net::EventLoop*loop=loop_ready.get_future().get();
+    rpc::CallOptions options;
+    options.timeout=std::chrono::milliseconds(500);
+    options.max_retries=2;
+
+    protocol::RpcMessage response=client->FutureCall(
+        "RetryService",
+        "Retry",
+        "success after retry",
+        options
+    ).get();
+
+    assert(response.meta.status_code==protocol::RpcError::Ok);
+    assert(response.payload=="success after retry");
+
+    auto requests=received_future.get();
+    assert(requests.size()==3);
+    assert(requests[0].request_id!=requests[1].request_id);
+    assert(requests[1].request_id!=requests[2].request_id);
+    assert(requests[0].meta.deadline_us!=0);
+    assert(requests[0].meta.deadline_us==
+           requests[1].meta.deadline_us);
+    assert(requests[1].meta.deadline_us==
+           requests[2].meta.deadline_us);
+
+    loop->Stop();
+    client_thread.join();
+    server_thread.join();
+}
+
+void TestRetryStopsAtDeadline(){
+    std::uint16_t port=FindFreePort();
+    std::promise<void>server_ready;
+    std::promise<std::vector<protocol::RpcMessage>>received;
+    auto received_future=received.get_future();
+    std::thread server_thread(
+        RunRetryDeadlineServer,
+        port,
+        &server_ready,
+        &received
+    );
+    server_ready.get_future().get();
+
+    std::promise<rpc::RpcClient*>client_ready;
+    std::promise<net::EventLoop*>loop_ready;
+    std::thread client_thread(
+        RunClient,
+        port,
+        &client_ready,
+        &loop_ready
+    );
+
+    rpc::RpcClient*client=client_ready.get_future().get();
+    net::EventLoop*loop=loop_ready.get_future().get();
+    rpc::CallOptions options;
+    options.timeout=std::chrono::milliseconds(35);
+    options.max_retries=100;
+
+    auto start=std::chrono::steady_clock::now();
+    protocol::RpcMessage response=client->FutureCall(
+        "RetryService",
+        "AlwaysFail",
+        "",
+        options
+    ).get();
+    auto elapsed=std::chrono::steady_clock::now()-start;
+
+    assert(response.meta.status_code==protocol::RpcError::Timeout);
+    assert(elapsed<std::chrono::milliseconds(500));
+
+    loop->Stop();
+    client_thread.join();
+    server_thread.join();
+
+    auto requests=received_future.get();
+    assert(!requests.empty());
+    assert(requests.size()<options.max_retries+1);
+
+    for(const auto& request:requests){
+        assert(request.meta.deadline_us==
+               requests.front().meta.deadline_us);
+    }
+}
+
 }
 
 int main(){
     TestPendingCalls();
     TestCalculatorRpc();
     TestOutOfOrderAndDisconnect();
+    TestClientTimeout();
+    TestRetrySuccess();
+    TestRetryStopsAtDeadline();
     return 0;
 }

@@ -243,8 +243,22 @@ void TestRpcServer(){
     assert(response.meta.status_code==
            protocol::StatusCode::MethodNotFound);
 
+    protocol::RpcMessage expired_request=MakeRequest(
+        104,
+        "EchoService",
+        "Echo",
+        "expired"
+    );
+    expired_request.meta.deadline_us=1;
+    SendAll(fd,codec.Encode(expired_request));
+
+    response=ReadOne(fd,&response_buffer);
+    assert(response.request_id==104);
+    assert(response.meta.status_code==protocol::RpcError::Timeout);
+    assert(response.payload.empty());
+
     std::string invalid=codec.Encode(
-        MakeRequest(104,"EchoService","Echo","bad")
+        MakeRequest(105,"EchoService","Echo","bad")
     );
     invalid[0]=0;
     SendAll(fd,invalid);

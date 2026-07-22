@@ -19,12 +19,28 @@ public:
         std::function<void(protocol::RpcMessage)>;
 
     ResponseFuture Add(std::uint64_t request_id);
+    ResponseFuture Add(
+        std::uint64_t request_id,
+        std::uint64_t deadline_us
+    );
+
     void Add(
         std::uint64_t request_id,
         ResponseCallback callback
     );
+    void Add(
+        std::uint64_t request_id,
+        std::uint64_t deadline_us,
+        ResponseCallback callback
+    );
+
+    bool SetTimeoutCancel(
+        std::uint64_t request_id,
+        std::function<void()> cancel
+    );
 
     bool Complete(protocol::RpcMessage response);
+    bool Expire(std::uint64_t request_id);
 
     bool Fail(
         std::uint64_t request_id,
@@ -43,6 +59,8 @@ private:
     struct PendingCall{
         std::promise<protocol::RpcMessage> promise;
         ResponseCallback callback;
+        std::function<void()> cancel_timeout;
+        std::uint64_t deadline_us=0;
     };
 
     using CallMap=

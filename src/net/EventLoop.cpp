@@ -1,4 +1,5 @@
 #include "minirpc/net/EventLoop.h"
+#include "minirpc/net/TimerQueue.h"
 
 #include <cerrno>
 #include <cstdint>
@@ -7,6 +8,7 @@
 #include <thread>
 #include <unistd.h>
 #include <utility>
+#include <memory>
 
 namespace minirpc::net{
 
@@ -34,6 +36,7 @@ EventLoop::EventLoop()
             HandleWakeup();
         });
         wakeup_channel_.EnableReading();
+        timer_queue_=std::make_unique<TimerQueue>(this);
     }catch(...){
         ::close(wakeup_fd_);
         throw;
@@ -41,6 +44,8 @@ EventLoop::EventLoop()
 }
 
 EventLoop::~EventLoop(){
+    timer_queue_.reset();
+
     if(wakeup_channel_.IsInEpoll()){
         try{
             wakeup_channel_.DisableAll();
@@ -75,6 +80,24 @@ void EventLoop::QueueInLoop(Functor cb){
     if(!IsInLoopThread()||calling_pending_functors_){
         Wakeup();
     }
+}
+
+EventLoop::TimerId EventLoop::RunAt(
+    TimePoint expiration,
+    Functor cb
+){
+    return timer_queue_->AddTimer(expiration,std::move(cb));
+}
+
+EventLoop::TimerId EventLoop::RunAfter(
+    std::chrono::microseconds delay,
+    Functor cb
+){
+    return RunAt(Clock::now()+delay,std::move(cb));
+}
+
+void EventLoop::CancelTimer(TimerId timer_id){
+    timer_queue_->Cancel(timer_id);
 }
 
 void EventLoop::Loop(){

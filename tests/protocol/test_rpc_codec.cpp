@@ -17,6 +17,7 @@ RpcMessage MakeRequest(){
     message.request_id=42;
     message.meta.service_name="UserService";
     message.meta.method_name="GetUser";
+    message.meta.deadline_us=123456789;
     message.payload=std::string("user\0id",7);
     return message;
 }
@@ -42,6 +43,7 @@ void AssertMessageEqual(
     assert(left.meta.method_name==right.meta.method_name);
     assert(left.meta.status_code==right.meta.status_code);
     assert(left.meta.error_text==right.meta.error_text);
+    assert(left.meta.deadline_us==right.meta.deadline_us);
     assert(left.payload==right.payload);
 }
 
@@ -142,12 +144,12 @@ void TestWireHeaderLayout(){
     assert(static_cast<unsigned char>(bytes[1])==0x52);
     assert(static_cast<unsigned char>(bytes[2])==0x50);
     assert(static_cast<unsigned char>(bytes[3])==0x43);
-    assert(static_cast<unsigned char>(bytes[4])==1);
+    assert(static_cast<unsigned char>(bytes[4])==2);
     assert(static_cast<unsigned char>(bytes[5])==1);
     assert(static_cast<unsigned char>(bytes[6])==1);
     assert(static_cast<unsigned char>(bytes[7])==0);
     assert(ReadUint64(bytes,8)==42);
-    assert(ReadUint32(bytes,16)==34);
+    assert(ReadUint32(bytes,16)==42);
     assert(ReadUint32(bytes,20)==7);
 }
 
@@ -274,7 +276,7 @@ void TestInvalidHeaders(){
     ExpectProtocolError(bytes);
 
     bytes=valid;
-    bytes[4]=2;
+    bytes[4]=3;
     ExpectProtocolError(bytes);
 
     bytes=valid;

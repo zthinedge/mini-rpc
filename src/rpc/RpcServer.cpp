@@ -3,9 +3,38 @@
 #include "minirpc/net/Buffer.h"
 #include "minirpc/net/TcpConnection.h"
 
+#include <chrono>
 #include <utility>
 
 namespace minirpc::rpc{
+namespace{
+
+std::uint64_t CurrentTimeMicros(){
+    return static_cast<std::uint64_t>(
+        std::chrono::duration_cast<std::chrono::microseconds>(
+            std::chrono::system_clock::now().time_since_epoch()
+        ).count()
+    );
+}
+
+bool IsExpired(const protocol::RpcMessage& request){
+    return request.meta.deadline_us!=0&&
+           CurrentTimeMicros()>=request.meta.deadline_us;
+}
+
+protocol::RpcMessage MakeTimeoutResponse(
+    const protocol::RpcMessage& request
+){
+    protocol::RpcMessage response;
+    response.message_type=protocol::MessageType::Response;
+    response.codec=request.codec;
+    response.request_id=request.request_id;
+    response.meta.status_code=protocol::RpcError::Timeout;
+    response.meta.error_text="rpc request deadline exceeded";
+    return response;
+}
+
+}
 
 RpcServer::RpcServer(
     net::EventLoop* loop,
@@ -56,6 +85,13 @@ void RpcServer::HandleMessage(
            request.message_type!=protocol::MessageType::Request){
             connection->Close();
             return;
+        }
+
+        if(IsExpired(request)){
+            connection->Send(codec_.Encode(
+                MakeTimeoutResponse(request)
+            ));
+            continue;
         }
 
         protocol::RpcMessage response=dispatcher_.Dispatch(request);

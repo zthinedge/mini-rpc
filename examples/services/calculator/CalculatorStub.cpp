@@ -16,7 +16,10 @@ CalculatorStub::CalculatorStub(rpc::RpcClient* client)
     }
 }
 
-AddResponse CalculatorStub::Add(const AddRequest& request)const{
+AddResponse CalculatorStub::Add(
+    const AddRequest& request,
+    rpc::CallOptions options
+)const{
     std::string payload;
     if(!request.SerializeToString(&payload)){
         throw std::runtime_error(
@@ -27,7 +30,8 @@ AddResponse CalculatorStub::Add(const AddRequest& request)const{
     protocol::RpcMessage response=client_->Call(
         kCalculatorServiceName,
         kAddMethodName,
-        std::move(payload)
+        std::move(payload),
+        options
     );
 
     if(response.meta.status_code!=protocol::StatusCode::Ok){
