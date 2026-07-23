@@ -1,5 +1,6 @@
 #include "minirpc/rpc/RpcClient.h"
 
+#include "minirpc/cluster/RetryPolicy.h"
 #include "minirpc/net/Buffer.h"
 #include "minirpc/net/EventLoop.h"
 #include "minirpc/net/TcpConnection.h"
@@ -198,6 +199,7 @@ void RpcClient::StartCall(
     state->payload=std::move(payload);
     state->deadline_us=ResolveDeadline(options);
     state->max_retries=options.max_retries;
+    state->idempotent=options.idempotent;
     state->completion=std::move(completion);
 
     StartAttempt(state);
@@ -234,13 +236,20 @@ void RpcClient::HandleAttemptResponse(
     protocol::RpcMessage response
 ){
     bool can_retry=
+        state->idempotent&&
         response.meta.status_code==protocol::RpcError::InternalError&&
         state->attempts<=state->max_retries&&
         !DeadlineReached(state->deadline_us);
 
     if(can_retry){
+        cluster::RetryPolicy retry_policy(
+            static_cast<std::size_t>(state->max_retries)+1,
+            std::chrono::milliseconds(1),
+            2.0,
+            std::chrono::seconds(1)
+        );
         loop_->RunAfter(
-            std::chrono::microseconds(1),
+            retry_policy.BackoffForRetry(state->attempts),
             [this,state](){
                 StartAttempt(state);
             }

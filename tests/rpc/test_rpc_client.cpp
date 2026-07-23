@@ -690,6 +690,7 @@ void TestRetrySuccess(){
     rpc::RpcClient*client=client_ready.get_future().get();
     net::EventLoop*loop=loop_ready.get_future().get();
     rpc::CallOptions options;
+    options.idempotent=true;
     options.timeout=std::chrono::milliseconds(500);
     options.max_retries=2;
 
@@ -743,6 +744,7 @@ void TestRetryStopsAtDeadline(){
     rpc::RpcClient*client=client_ready.get_future().get();
     net::EventLoop*loop=loop_ready.get_future().get();
     rpc::CallOptions options;
+    options.idempotent=true;
     options.timeout=std::chrono::milliseconds(35);
     options.max_retries=100;
 

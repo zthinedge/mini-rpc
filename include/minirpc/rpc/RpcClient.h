@@ -70,6 +70,7 @@ private:
         std::uint64_t deadline_us=0;
         std::uint32_t max_retries=0;
         std::uint32_t attempts=0;
+        bool idempotent=false;
         ResponseCallback completion;
     };
 
