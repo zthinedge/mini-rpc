@@ -1,6 +1,7 @@
 #include "CalculatorStub.h"
 #include "minirpc/log/AsyncLogger.h"
 #include "minirpc/log/LogMacros.h"
+#include "minirpc/metrics/RpcMetrics.h"
 #include "minirpc/net/EventLoop.h"
 #include "minirpc/net/InetAddress.h"
 #include "minirpc/rpc/CallOptions.h"
@@ -51,6 +52,25 @@ ClientArguments ParseArguments(int argc,char* argv[]){
     return arguments;
 }
 
+void PrintMetrics(const metrics::RpcMetricsSnapshot& snapshot){
+    std::cout<<"\n[client metrics]\n"
+             <<"total requests: "<<snapshot.total_requests<<'\n'
+             <<"successful requests: "
+             <<snapshot.successful_requests<<'\n'
+             <<"failed requests: "<<snapshot.failed_requests<<'\n'
+             <<"timeout requests: "<<snapshot.timeout_requests<<'\n'
+             <<"retries: "<<snapshot.retries<<'\n'
+             <<"inflight requests: "<<snapshot.inflight_requests<<'\n'
+             <<"active connections: "<<snapshot.active_connections<<'\n'
+             <<"average latency(us): "
+             <<snapshot.AverageLatencyMicros()<<'\n'
+             <<"max latency(us): "<<snapshot.max_latency_us<<'\n'
+             <<"P50/P95/P99(us): "
+             <<snapshot.p50_latency_us<<'/'
+             <<snapshot.p95_latency_us<<'/'
+             <<snapshot.p99_latency_us<<'\n';
+}
+
 }
 
 int main(int argc,char* argv[]){
@@ -95,8 +115,12 @@ int main(int argc,char* argv[]){
                     MINIRPC_LOG_ERROR(logger,error.what());
                 }
 
-                loop.Stop();
+                client.Disconnect();
             });
+        });
+
+        client.SetCloseCallback([&loop](){
+            loop.Stop();
         });
 
         client.SetErrorCallback([&](int error){
@@ -113,6 +137,9 @@ int main(int argc,char* argv[]){
         if(call_thread.joinable()){
             call_thread.join();
         }
+
+        PrintMetrics(client.GetMetrics());
+
         logger.Stop();
         return exit_code;
     }catch(const std::exception& error){

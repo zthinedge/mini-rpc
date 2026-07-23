@@ -1,6 +1,7 @@
 #include "CalculatorService.h"
 #include "minirpc/log/AsyncLogger.h"
 #include "minirpc/log/LogMacros.h"
+#include "minirpc/metrics/RpcMetrics.h"
 #include "minirpc/net/EventLoop.h"
 #include "minirpc/net/InetAddress.h"
 #include "minirpc/rpc/RpcServer.h"
@@ -53,6 +54,25 @@ std::uint16_t ParsePort(int argc,char* argv[]){
     return static_cast<std::uint16_t>(port);
 }
 
+void PrintMetrics(const metrics::RpcMetricsSnapshot& snapshot){
+    std::cout<<"\n[server metrics]\n"
+             <<"total requests: "<<snapshot.total_requests<<'\n'
+             <<"successful requests: "
+             <<snapshot.successful_requests<<'\n'
+             <<"failed requests: "<<snapshot.failed_requests<<'\n'
+             <<"timeout requests: "<<snapshot.timeout_requests<<'\n'
+             <<"retries: "<<snapshot.retries<<'\n'
+             <<"inflight requests: "<<snapshot.inflight_requests<<'\n'
+             <<"active connections: "<<snapshot.active_connections<<'\n'
+             <<"average latency(us): "
+             <<snapshot.AverageLatencyMicros()<<'\n'
+             <<"max latency(us): "<<snapshot.max_latency_us<<'\n'
+             <<"P50/P95/P99(us): "
+             <<snapshot.p50_latency_us<<'/'
+             <<snapshot.p95_latency_us<<'/'
+             <<snapshot.p99_latency_us<<'\n';
+}
+
 }
 
 int main(int argc,char* argv[]){
@@ -71,6 +91,13 @@ int main(int argc,char* argv[]){
         CalculatorServiceImpl service(&logger);
         CalculatorServiceAdapter adapter(&service);
         adapter.RegisterTo(&server);
+        server.RegisterMethod(
+            "BenchService",
+            "Echo",
+            [](const std::string& payload){
+                return payload;
+            }
+        );
         server.Start();
 
         MINIRPC_LOG_INFO(
@@ -91,6 +118,8 @@ int main(int argc,char* argv[]){
 
         loop.Loop();
         stop_thread.join();
+
+        PrintMetrics(server.GetMetrics());
 
         MINIRPC_LOG_INFO(logger,"calculator rpc server stopped");
         logger.Stop();

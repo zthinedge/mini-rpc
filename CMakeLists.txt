@@ -4,6 +4,7 @@ project(mini_rpc LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 find_package(Threads REQUIRED)
 
@@ -67,6 +68,13 @@ add_executable(calculator_client
 )
 target_link_libraries(calculator_client PRIVATE
     calculator_rpc
+)
+
+add_executable(rpc_bench
+    benchmarks/rpc_bench.cpp
+)
+target_link_libraries(rpc_bench PRIVATE
+    minirpc
 )
 
 enable_testing()
