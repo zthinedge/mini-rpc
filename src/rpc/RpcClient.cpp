@@ -88,7 +88,7 @@ RpcClient::RpcClient(
     tcp_client_.SetCloseCallback([this](){
         connected_.store(false);
         pending_calls_.FailAll(
-            protocol::StatusCode::InternalError,
+            protocol::StatusCode::ConnectionFailed,
             "rpc connection closed"
         );
 
@@ -100,7 +100,7 @@ RpcClient::RpcClient(
     tcp_client_.SetErrorCallback([this](int error){
         connected_.store(false);
         pending_calls_.FailAll(
-            protocol::StatusCode::InternalError,
+            protocol::StatusCode::ConnectionFailed,
             "rpc connection failed"
         );
 
@@ -113,6 +113,12 @@ RpcClient::RpcClient(
 void RpcClient::Connect(){
     loop_->RunInLoop([this](){
         tcp_client_.Connect();
+    });
+}
+
+void RpcClient::Disconnect(){
+    loop_->RunInLoop([this](){
+        tcp_client_.Disconnect();
     });
 }
 
@@ -293,7 +299,7 @@ void RpcClient::SendRequest(
             if(!tcp_client_.IsConnected()){
                 pending_calls_.Fail(
                     request_id,
-                    protocol::StatusCode::InternalError,
+                    protocol::StatusCode::ConnectionFailed,
                     "rpc client is not connected"
                 );
                 return;

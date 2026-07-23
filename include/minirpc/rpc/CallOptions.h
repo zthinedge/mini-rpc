@@ -6,6 +6,9 @@
 namespace minirpc::rpc{
 
 struct CallOptions{
+    // 由Stub根据方法定义设置；只有幂等方法才允许自动重试。
+    bool idempotent=false;
+
     // 相对超时；0表示不限制。
     std::chrono::microseconds timeout{0};
 

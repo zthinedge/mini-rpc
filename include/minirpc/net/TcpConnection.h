@@ -20,7 +20,7 @@ public:
         std::function<void(TcpConnection*)>;
 
     TcpConnection(EventLoop*loop,Socket socket);
-    ~TcpConnection()=default;
+    ~TcpConnection();
 
     void Start();
     void Send(const std::string& data);

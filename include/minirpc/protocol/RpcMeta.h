@@ -12,7 +12,8 @@ enum class RpcError : std::int32_t{
     MethodNotFound=3,
     InvokeError=4,
     InternalError=5,
-    Timeout=6
+    Timeout=6,
+    ConnectionFailed=7
 };
 
 using StatusCode=RpcError;

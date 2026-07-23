@@ -28,6 +28,7 @@ public:
     TcpClient& operator=(TcpClient&&)=delete;
 
     void Connect();
+    void Disconnect();
     void Send(const std::string& data);
 
     bool IsConnected()const noexcept;

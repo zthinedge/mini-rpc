@@ -32,6 +32,7 @@ public:
     );
 
     void Connect();
+    void Disconnect();
 
     protocol::RpcMessage Call(
         std::string service_name,

@@ -10,6 +10,10 @@ find_package(Threads REQUIRED)
 include(cmake/Protobuf.cmake)
 
 add_library(minirpc
+    src/cluster/Endpoint.cpp
+    src/cluster/RetryPolicy.cpp
+    src/cluster/ConnectionPool.cpp
+    src/cluster/ChannelManager.cpp
     src/net/InetAddress.cpp
     src/net/Socket.cpp
     src/net/Buffer.cpp
@@ -70,6 +74,9 @@ add_executable(test_rpc_server
 add_executable(test_rpc_client
     tests/rpc/test_rpc_client.cpp
 )
+add_executable(test_connection_pool
+    tests/cluster/test_connection_pool.cpp
+)
 
 target_link_libraries(test_socket PRIVATE
     minirpc
@@ -98,6 +105,9 @@ target_link_libraries(test_rpc_server PRIVATE
 target_link_libraries(test_rpc_client PRIVATE
     calculator_rpc
 )
+target_link_libraries(test_connection_pool PRIVATE
+    minirpc
+)
 
 
 add_test(NAME test_socket COMMAND test_socket)
@@ -109,3 +119,4 @@ add_test(NAME test_rpc_codec COMMAND test_rpc_codec)
 add_test(NAME test_protobuf COMMAND test_protobuf)
 add_test(NAME test_rpc_server COMMAND test_rpc_server)
 add_test(NAME test_rpc_client COMMAND test_rpc_client)
+add_test(NAME test_connection_pool COMMAND test_connection_pool)

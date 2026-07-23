@@ -588,9 +588,9 @@ void TestOutOfOrderAndDisconnect(){
            )==std::future_status::ready);
 
     assert(disconnected_future.get().meta.status_code==
-           protocol::StatusCode::InternalError);
+           protocol::StatusCode::ConnectionFailed);
     assert(disconnected_callback_future.get().meta.status_code==
-           protocol::StatusCode::InternalError);
+           protocol::StatusCode::ConnectionFailed);
 
     loop->Stop();
     client_thread.join();

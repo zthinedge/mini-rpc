@@ -24,6 +24,15 @@ TcpConnection::TcpConnection(EventLoop*loop,Socket socket)
         HandleClose();
     });
 }
+
+TcpConnection::~TcpConnection(){
+    if(channel_.IsInEpoll()){
+        try{
+            channel_.DisableAll();
+        }catch(...){
+        }
+    }
+}
 //连接对应的channel为可读
 void TcpConnection::Start(){
     channel_.EnableReading();

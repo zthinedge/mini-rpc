@@ -22,6 +22,14 @@ void TcpClient::Connect(){
     connector_.Connect();
 }
 
+void TcpClient::Disconnect(){
+    loop_->RunInLoop([this](){
+        if(connection_){
+            connection_->Close();
+        }
+    });
+}
+
 void TcpClient::Send(const std::string& data){
     if(connection_){
         connection_->Send(data);
