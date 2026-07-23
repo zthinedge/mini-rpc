@@ -22,6 +22,14 @@ void TcpServer::SetMessageCallback(MessageCallback cb){
     message_callback_=std::move(cb);
 }
 
+void TcpServer::SetConnectionCallback(ConnectionCallback cb){
+    connection_callback_=std::move(cb);
+}
+
+void TcpServer::SetCloseCallback(CloseCallback cb){
+    close_callback_=std::move(cb);
+}
+
 void TcpServer::HandleNewConnection(Socket socket,const InetAddress&){
     auto connection=std::make_unique<TcpConnection>(loop_,std::move(socket));
 
@@ -44,13 +52,19 @@ void TcpServer::HandleNewConnection(Socket socket,const InetAddress&){
     TcpConnection* connection_ptr=connection.get();
     connections_.emplace(fd,std::move(connection));
     connection_ptr->Start();
+
+    if(connection_callback_){
+        connection_callback_();
+    }
 }
 
 void TcpServer::HandleClose(TcpConnection* connection){
     int fd=connection->Fd();
     //放入EventLoop的待执行队列
     loop_->QueueInLoop([this,fd](){
-        connections_.erase(fd);
+        if(connections_.erase(fd)>0&&close_callback_){
+            close_callback_();
+        }
     });
 }
 

@@ -158,6 +158,8 @@ public:
         state->call_options.max_retries=0;
         state->retry_policy=std::move(retry_policy);
         state->completion=std::move(completion);
+        state->started_at=metrics::RpcMetrics::Clock::now();
+        metrics_.RequestStarted();
 
         auto self=shared_from_this();
         loop_->RunInLoop([self,state](){
@@ -186,6 +188,10 @@ public:
         return stats;
     }
 
+    metrics::RpcMetricsSnapshot GetMetrics()const noexcept{
+        return metrics_.Snapshot();
+    }
+
     bool IsInLoopThread()const noexcept{
         return loop_->IsInLoopThread();
     }
@@ -207,6 +213,7 @@ private:
         ResponseCallback completion;
         std::size_t attempts=0;
         net::EventLoop::TimerId deadline_timer=0;
+        metrics::RpcMetrics::TimePoint started_at;
         bool finished=false;
     };
 
@@ -350,6 +357,7 @@ private:
         entry->state=EntryState::Connected;
         entry->last_used=net::EventLoop::Clock::now();
         connected_count_.fetch_add(1,std::memory_order_relaxed);
+        metrics_.ConnectionOpened();
 
         std::vector<std::shared_ptr<CallState>> waiting;
         waiting.swap(entry->waiting_calls);
@@ -368,6 +376,7 @@ private:
 
         if(entry->state==EntryState::Connected){
             connected_count_.fetch_sub(1,std::memory_order_relaxed);
+            metrics_.ConnectionClosed();
         }
         entry->state=EntryState::Failed;
 
@@ -451,6 +460,7 @@ private:
                entry->state==EntryState::Connected){
                 entry->state=EntryState::Failed;
                 connected_count_.fetch_sub(1,std::memory_order_relaxed);
+                metrics_.ConnectionClosed();
                 ScheduleErase(entry_id);
             }
         }
@@ -504,6 +514,7 @@ private:
         }
 
         retry_count_.fetch_add(1,std::memory_order_relaxed);
+        metrics_.RetryStarted();
 
         auto self=shared_from_this();
         if(delay==std::chrono::microseconds::zero()){
@@ -531,6 +542,10 @@ private:
             loop_->CancelTimer(state->deadline_timer);
             state->deadline_timer=0;
         }
+        metrics_.RequestFinished(
+            response.meta.status_code,
+            state->started_at
+        );
         state->completion(std::move(response));
     }
 
@@ -612,6 +627,7 @@ private:
 
         if((*entry)->state==EntryState::Connected){
             connected_count_.fetch_sub(1,std::memory_order_relaxed);
+            metrics_.ConnectionClosed();
         }
         if((*entry)->in_flight>0){
             in_flight_count_.fetch_sub(
@@ -647,6 +663,7 @@ private:
                now-entry->last_used>=options_.idle_timeout){
                 entry->state=EntryState::Closing;
                 connected_count_.fetch_sub(1,std::memory_order_relaxed);
+                metrics_.ConnectionClosed();
                 entry->client->Disconnect();
             }
         }
@@ -663,6 +680,11 @@ private:
             reaper_timer_=0;
         }
 
+        for(const auto& entry:entries_){
+            if(entry->state==EntryState::Connected){
+                metrics_.ConnectionClosed();
+            }
+        }
         entries_.clear();
         connection_count_.store(0,std::memory_order_relaxed);
         connected_count_.store(0,std::memory_order_relaxed);
@@ -681,6 +703,7 @@ private:
     std::atomic_size_t connected_count_;
     std::atomic_size_t in_flight_count_;
     std::atomic_size_t retry_count_;
+    metrics::RpcMetrics metrics_;
 };
 
 ConnectionPool::ConnectionPool(
@@ -769,6 +792,10 @@ const ConnectionPoolOptions& ConnectionPool::Options()const noexcept{
 
 ConnectionPoolStats ConnectionPool::GetStats()const noexcept{
     return impl_->GetStats();
+}
+
+metrics::RpcMetricsSnapshot ConnectionPool::GetMetrics()const noexcept{
+    return impl_->GetMetrics();
 }
 
 }

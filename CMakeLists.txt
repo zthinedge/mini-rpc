@@ -16,6 +16,7 @@ add_library(minirpc
     src/cluster/ChannelManager.cpp
     src/log/AsyncLogger.cpp
     src/log/RollingFileSink.cpp
+    src/metrics/RpcMetrics.cpp
     src/net/InetAddress.cpp
     src/net/Socket.cpp
     src/net/Buffer.cpp
@@ -103,6 +104,9 @@ add_executable(test_async_logger
 add_executable(test_connection_pool
     tests/cluster/test_connection_pool.cpp
 )
+add_executable(test_rpc_metrics
+    tests/metrics/test_rpc_metrics.cpp
+)
 
 target_link_libraries(test_socket PRIVATE
     minirpc
@@ -137,6 +141,9 @@ target_link_libraries(test_async_logger PRIVATE
 target_link_libraries(test_connection_pool PRIVATE
     minirpc
 )
+target_link_libraries(test_rpc_metrics PRIVATE
+    minirpc
+)
 
 
 add_test(NAME test_socket COMMAND test_socket)
@@ -150,3 +157,4 @@ add_test(NAME test_rpc_server COMMAND test_rpc_server)
 add_test(NAME test_rpc_client COMMAND test_rpc_client)
 add_test(NAME test_async_logger COMMAND test_async_logger)
 add_test(NAME test_connection_pool COMMAND test_connection_pool)
+add_test(NAME test_rpc_metrics COMMAND test_rpc_metrics)

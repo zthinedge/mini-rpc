@@ -280,6 +280,15 @@ void TestConnectionFailureIsExplicit(){
         },
         std::chrono::seconds(1)
     ));
+
+    auto metrics=pool->GetMetrics();
+    assert(metrics.total_requests==1);
+    assert(metrics.successful_requests==0);
+    assert(metrics.failed_requests==1);
+    assert(metrics.timeout_requests==0);
+    assert(metrics.retries==0);
+    assert(metrics.inflight_requests==0);
+    assert(metrics.active_connections==0);
 }
 
 void TestRetryCanRecoverOnANewConnection(){
@@ -318,6 +327,15 @@ void TestRetryCanRecoverOnANewConnection(){
     assert(response.payload=="retry-success");
     assert(server->Calls()==1);
     assert(pool->GetStats().retries==1);
+
+    auto metrics=pool->GetMetrics();
+    assert(metrics.total_requests==1);
+    assert(metrics.successful_requests==1);
+    assert(metrics.failed_requests==0);
+    assert(metrics.retries==1);
+    assert(metrics.inflight_requests==0);
+    assert(metrics.active_connections==1);
+    assert(metrics.latency_samples==1);
 }
 
 void TestBusinessErrorsAreNotRetried(){
@@ -345,6 +363,12 @@ void TestBusinessErrorsAreNotRetried(){
     assert(response.meta.status_code==
            protocol::StatusCode::MethodNotFound);
     assert(pool->GetStats().retries==0);
+
+    auto metrics=pool->GetMetrics();
+    assert(metrics.total_requests==1);
+    assert(metrics.successful_requests==0);
+    assert(metrics.failed_requests==1);
+    assert(metrics.retries==0);
 }
 
 void TestRetryDoesNotExceedDeadline(){
@@ -373,6 +397,12 @@ void TestRetryDoesNotExceedDeadline(){
     ));
     assert(response.meta.status_code==protocol::StatusCode::Timeout);
     assert(pool->GetStats().retries==0);
+
+    auto metrics=pool->GetMetrics();
+    assert(metrics.total_requests==1);
+    assert(metrics.failed_requests==1);
+    assert(metrics.timeout_requests==1);
+    assert(metrics.retries==0);
 }
 
 void TestReuseLimitDistributionAndInvalidRemoval(){
@@ -434,6 +464,13 @@ void TestReuseLimitDistributionAndInvalidRemoval(){
     assert(failed.meta.status_code==
            protocol::StatusCode::ConnectionFailed);
     assert(server.Calls()==13);
+
+    auto metrics=pool->GetMetrics();
+    assert(metrics.total_requests==14);
+    assert(metrics.successful_requests==13);
+    assert(metrics.failed_requests==1);
+    assert(metrics.inflight_requests==0);
+    assert(metrics.active_connections==0);
 }
 
 void TestIdleConnectionReaping(){
@@ -469,6 +506,7 @@ void TestIdleConnectionReaping(){
         },
         std::chrono::seconds(1)
     ));
+    assert(pool->GetMetrics().active_connections==0);
 
     protocol::RpcMessage recreated=GetResponse(pool->FutureCall(
         "EchoService","Echo","recreated",ShortTimeout()
@@ -476,6 +514,12 @@ void TestIdleConnectionReaping(){
     assert(recreated.meta.status_code==protocol::StatusCode::Ok);
     assert(recreated.payload=="recreated");
     assert(pool->GetStats().connections==1);
+
+    auto metrics=pool->GetMetrics();
+    assert(metrics.total_requests==3);
+    assert(metrics.successful_requests==3);
+    assert(metrics.failed_requests==0);
+    assert(metrics.active_connections==1);
 }
 
 }

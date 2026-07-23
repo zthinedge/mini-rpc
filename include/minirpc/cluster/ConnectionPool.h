@@ -2,6 +2,7 @@
 
 #include "minirpc/cluster/Endpoint.h"
 #include "minirpc/cluster/RetryPolicy.h"
+#include "minirpc/metrics/RpcMetrics.h"
 #include "minirpc/protocol/RpcMessage.h"
 #include "minirpc/rpc/CallOptions.h"
 
@@ -78,6 +79,7 @@ public:
     const Endpoint& GetEndpoint()const noexcept;
     const ConnectionPoolOptions& Options()const noexcept;
     ConnectionPoolStats GetStats()const noexcept;
+    metrics::RpcMetricsSnapshot GetMetrics()const noexcept;
 
 private:
     class Impl;

@@ -45,6 +45,12 @@ RpcServer::RpcServer(
             HandleMessage(connection,buffer);
         }
     );
+    tcp_server_.SetConnectionCallback([this](){
+        metrics_.ConnectionOpened();
+    });
+    tcp_server_.SetCloseCallback([this](){
+        metrics_.ConnectionClosed();
+    });
 }
 
 void RpcServer::RegisterMethod(
@@ -61,6 +67,10 @@ void RpcServer::RegisterMethod(
 
 void RpcServer::Start(){
     tcp_server_.Start();
+}
+
+metrics::RpcMetricsSnapshot RpcServer::GetMetrics()const noexcept{
+    return metrics_.Snapshot();
 }
 
 void RpcServer::HandleMessage(
@@ -87,14 +97,24 @@ void RpcServer::HandleMessage(
             return;
         }
 
+        auto started_at=metrics::RpcMetrics::Clock::now();
+        metrics_.RequestStarted();
+
         if(IsExpired(request)){
-            connection->Send(codec_.Encode(
-                MakeTimeoutResponse(request)
-            ));
+            protocol::RpcMessage response=MakeTimeoutResponse(request);
+            metrics_.RequestFinished(
+                response.meta.status_code,
+                started_at
+            );
+            connection->Send(codec_.Encode(response));
             continue;
         }
 
         protocol::RpcMessage response=dispatcher_.Dispatch(request);
+        metrics_.RequestFinished(
+            response.meta.status_code,
+            started_at
+        );
         connection->Send(codec_.Encode(response));
     }
 }

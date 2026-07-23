@@ -1,5 +1,6 @@
 #pragma once
 
+#include "minirpc/metrics/RpcMetrics.h"
 #include "minirpc/net/TcpClient.h"
 #include "minirpc/protocol/RpcCodec.h"
 #include "minirpc/rpc/CallOptions.h"
@@ -57,6 +58,7 @@ public:
     );
 
     bool IsConnected()const noexcept;
+    metrics::RpcMetricsSnapshot GetMetrics()const noexcept;
 
     void SetConnectionCallback(ConnectionCallback callback);
     void SetCloseCallback(CloseCallback callback);
@@ -71,6 +73,8 @@ private:
         std::uint32_t max_retries=0;
         std::uint32_t attempts=0;
         bool idempotent=false;
+        bool finished=false;
+        metrics::RpcMetrics::TimePoint started_at;
         ResponseCallback completion;
     };
 
@@ -115,6 +119,7 @@ private:
     std::atomic_uint64_t next_request_id_;
     std::atomic_bool connected_;
     PendingCalls pending_calls_;
+    metrics::RpcMetrics metrics_;
 
     ConnectionCallback connection_callback_;
     CloseCallback close_callback_;

@@ -188,8 +188,9 @@ void TestDispatcher(){
 void TestRpcServer(){
     std::uint16_t port=FindFreePort();
     std::promise<net::EventLoop*>server_ready;
+    std::promise<rpc::RpcServer*>rpc_server_ready;
 
-    std::thread server_thread([port,&server_ready](){
+    std::thread server_thread([port,&server_ready,&rpc_server_ready](){
         net::EventLoop loop;
         net::InetAddress address("127.0.0.1",port);
         rpc::RpcServer server(&loop,address);
@@ -204,10 +205,12 @@ void TestRpcServer(){
 
         server.Start();
         server_ready.set_value(&loop);
+        rpc_server_ready.set_value(&server);
         loop.Loop();
     });
 
     net::EventLoop*loop=server_ready.get_future().get();
+    rpc::RpcServer*server=rpc_server_ready.get_future().get();
     int fd=Connect(port);
 
     protocol::RpcCodec codec;
@@ -256,6 +259,15 @@ void TestRpcServer(){
     assert(response.request_id==104);
     assert(response.meta.status_code==protocol::RpcError::Timeout);
     assert(response.payload.empty());
+
+    auto metrics=server->GetMetrics();
+    assert(metrics.total_requests==4);
+    assert(metrics.successful_requests==1);
+    assert(metrics.failed_requests==3);
+    assert(metrics.timeout_requests==1);
+    assert(metrics.inflight_requests==0);
+    assert(metrics.active_connections==1);
+    assert(metrics.latency_samples==4);
 
     std::string invalid=codec.Encode(
         MakeRequest(105,"EchoService","Echo","bad")

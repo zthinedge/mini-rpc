@@ -72,7 +72,10 @@ RpcClient::RpcClient(
   connected_(false){
     tcp_client_.SetConnectionCallback(
         [this](net::TcpConnection*){
-            connected_.store(true);
+            bool was_connected=connected_.exchange(true);
+            if(!was_connected){
+                metrics_.ConnectionOpened();
+            }
 
             if(connection_callback_){
                 connection_callback_();
@@ -87,7 +90,10 @@ RpcClient::RpcClient(
     );
 
     tcp_client_.SetCloseCallback([this](){
-        connected_.store(false);
+        bool was_connected=connected_.exchange(false);
+        if(was_connected){
+            metrics_.ConnectionClosed();
+        }
         pending_calls_.FailAll(
             protocol::StatusCode::ConnectionFailed,
             "rpc connection closed"
@@ -99,7 +105,10 @@ RpcClient::RpcClient(
     });
 
     tcp_client_.SetErrorCallback([this](int error){
-        connected_.store(false);
+        bool was_connected=connected_.exchange(false);
+        if(was_connected){
+            metrics_.ConnectionClosed();
+        }
         pending_calls_.FailAll(
             protocol::StatusCode::ConnectionFailed,
             "rpc connection failed"
@@ -200,7 +209,9 @@ void RpcClient::StartCall(
     state->deadline_us=ResolveDeadline(options);
     state->max_retries=options.max_retries;
     state->idempotent=options.idempotent;
+    state->started_at=metrics::RpcMetrics::Clock::now();
     state->completion=std::move(completion);
+    metrics_.RequestStarted();
 
     StartAttempt(state);
 }
@@ -235,6 +246,10 @@ void RpcClient::HandleAttemptResponse(
     const std::shared_ptr<CallState>& state,
     protocol::RpcMessage response
 ){
+    if(state->finished){
+        return;
+    }
+
     bool can_retry=
         state->idempotent&&
         response.meta.status_code==protocol::RpcError::InternalError&&
@@ -242,6 +257,7 @@ void RpcClient::HandleAttemptResponse(
         !DeadlineReached(state->deadline_us);
 
     if(can_retry){
+        metrics_.RetryStarted();
         cluster::RetryPolicy retry_policy(
             static_cast<std::size_t>(state->max_retries)+1,
             std::chrono::milliseconds(1),
@@ -257,6 +273,11 @@ void RpcClient::HandleAttemptResponse(
         return;
     }
 
+    state->finished=true;
+    metrics_.RequestFinished(
+        response.meta.status_code,
+        state->started_at
+    );
     state->completion(std::move(response));
 }
 
@@ -321,6 +342,10 @@ void RpcClient::SendRequest(
 
 bool RpcClient::IsConnected()const noexcept{
     return connected_.load();
+}
+
+metrics::RpcMetricsSnapshot RpcClient::GetMetrics()const noexcept{
+    return metrics_.Snapshot();
 }
 
 void RpcClient::SetConnectionCallback(ConnectionCallback callback){

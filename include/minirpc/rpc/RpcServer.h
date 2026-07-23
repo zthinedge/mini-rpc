@@ -1,5 +1,6 @@
 #pragma once
 
+#include "minirpc/metrics/RpcMetrics.h"
 #include "minirpc/net/TcpServer.h"
 #include "minirpc/protocol/RpcCodec.h"
 #include "minirpc/rpc/ServiceDispatcher.h"
@@ -29,6 +30,7 @@ public:
     );
 
     void Start();
+    metrics::RpcMetricsSnapshot GetMetrics()const noexcept;
 
 private:
     void HandleMessage(
@@ -39,6 +41,7 @@ private:
     net::TcpServer tcp_server_;
     protocol::RpcCodec codec_;
     ServiceDispatcher dispatcher_;
+    metrics::RpcMetrics metrics_;
 };
 
 }

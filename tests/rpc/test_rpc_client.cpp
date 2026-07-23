@@ -655,6 +655,13 @@ void TestClientTimeout(){
     assert(callback_future.get().meta.status_code==
            protocol::RpcError::Timeout);
 
+    auto metrics=client->GetMetrics();
+    assert(metrics.total_requests==2);
+    assert(metrics.successful_requests==0);
+    assert(metrics.failed_requests==2);
+    assert(metrics.timeout_requests==2);
+    assert(metrics.inflight_requests==0);
+
     auto requests=received_future.get();
     assert(requests.size()==2);
     assert(requests[0].meta.deadline_us!=0);
@@ -714,6 +721,14 @@ void TestRetrySuccess(){
     assert(requests[1].meta.deadline_us==
            requests[2].meta.deadline_us);
 
+    auto metrics=client->GetMetrics();
+    assert(metrics.total_requests==1);
+    assert(metrics.successful_requests==1);
+    assert(metrics.failed_requests==0);
+    assert(metrics.retries==2);
+    assert(metrics.inflight_requests==0);
+    assert(metrics.latency_samples==1);
+
     loop->Stop();
     client_thread.join();
     server_thread.join();
@@ -759,6 +774,13 @@ void TestRetryStopsAtDeadline(){
 
     assert(response.meta.status_code==protocol::RpcError::Timeout);
     assert(elapsed<std::chrono::milliseconds(500));
+
+    auto metrics=client->GetMetrics();
+    assert(metrics.total_requests==1);
+    assert(metrics.successful_requests==0);
+    assert(metrics.failed_requests==1);
+    assert(metrics.timeout_requests==1);
+    assert(metrics.inflight_requests==0);
 
     loop->Stop();
     client_thread.join();
