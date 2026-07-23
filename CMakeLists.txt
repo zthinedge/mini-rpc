@@ -14,6 +14,8 @@ add_library(minirpc
     src/cluster/RetryPolicy.cpp
     src/cluster/ConnectionPool.cpp
     src/cluster/ChannelManager.cpp
+    src/log/AsyncLogger.cpp
+    src/log/RollingFileSink.cpp
     src/net/InetAddress.cpp
     src/net/Socket.cpp
     src/net/Buffer.cpp
@@ -45,6 +47,27 @@ target_link_libraries(minirpc PUBLIC
 
 add_subdirectory(examples/services/calculator)
 
+add_executable(async_logger_demo
+    examples/logging/async_logger_demo.cpp
+)
+target_link_libraries(async_logger_demo PRIVATE
+    minirpc
+)
+
+add_executable(calculator_server
+    examples/server/calculator_server.cpp
+)
+target_link_libraries(calculator_server PRIVATE
+    calculator_rpc
+)
+
+add_executable(calculator_client
+    examples/client/calculator_client.cpp
+)
+target_link_libraries(calculator_client PRIVATE
+    calculator_rpc
+)
+
 enable_testing()
 
 add_executable(test_socket
@@ -73,6 +96,9 @@ add_executable(test_rpc_server
 )
 add_executable(test_rpc_client
     tests/rpc/test_rpc_client.cpp
+)
+add_executable(test_async_logger
+    tests/log/test_async_logger.cpp
 )
 add_executable(test_connection_pool
     tests/cluster/test_connection_pool.cpp
@@ -105,6 +131,9 @@ target_link_libraries(test_rpc_server PRIVATE
 target_link_libraries(test_rpc_client PRIVATE
     calculator_rpc
 )
+target_link_libraries(test_async_logger PRIVATE
+    minirpc
+)
 target_link_libraries(test_connection_pool PRIVATE
     minirpc
 )
@@ -119,4 +148,5 @@ add_test(NAME test_rpc_codec COMMAND test_rpc_codec)
 add_test(NAME test_protobuf COMMAND test_protobuf)
 add_test(NAME test_rpc_server COMMAND test_rpc_server)
 add_test(NAME test_rpc_client COMMAND test_rpc_client)
+add_test(NAME test_async_logger COMMAND test_async_logger)
 add_test(NAME test_connection_pool COMMAND test_connection_pool)
