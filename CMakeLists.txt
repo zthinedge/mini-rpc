@@ -18,6 +18,7 @@ include(cmake/Protobuf.cmake)
 
 add_library(minirpc
     src/cluster/Endpoint.cpp
+    src/cluster/RoundRobin.cpp
     src/cluster/RetryPolicy.cpp
     src/cluster/ConnectionPool.cpp
     src/cluster/ChannelManager.cpp
@@ -81,6 +82,20 @@ if(MINIRPC_WITH_ZOOKEEPER)
             minirpc
         PRIVATE
             ${ZOOKEEPER_MT_LIBRARY}
+    )
+
+    add_executable(registry_server
+        examples/registry/registry_server.cpp
+    )
+    target_link_libraries(registry_server PRIVATE
+        minirpc_zookeeper
+    )
+
+    add_executable(registry_client
+        examples/registry/registry_client.cpp
+    )
+    target_link_libraries(registry_client PRIVATE
+        minirpc_zookeeper
     )
 endif()
 
@@ -149,6 +164,9 @@ add_executable(test_async_logger
 add_executable(test_connection_pool
     tests/cluster/test_connection_pool.cpp
 )
+add_executable(test_round_robin
+    tests/cluster/test_round_robin.cpp
+)
 add_executable(test_rpc_metrics
     tests/metrics/test_rpc_metrics.cpp
 )
@@ -191,6 +209,9 @@ target_link_libraries(test_async_logger PRIVATE
 target_link_libraries(test_connection_pool PRIVATE
     minirpc
 )
+target_link_libraries(test_round_robin PRIVATE
+    minirpc
+)
 target_link_libraries(test_rpc_metrics PRIVATE
     minirpc
 )
@@ -212,6 +233,7 @@ add_test(NAME test_rpc_server COMMAND test_rpc_server)
 add_test(NAME test_rpc_client COMMAND test_rpc_client)
 add_test(NAME test_async_logger COMMAND test_async_logger)
 add_test(NAME test_connection_pool COMMAND test_connection_pool)
+add_test(NAME test_round_robin COMMAND test_round_robin)
 add_test(NAME test_rpc_metrics COMMAND test_rpc_metrics)
 if(MINIRPC_WITH_ZOOKEEPER)
     add_test(
