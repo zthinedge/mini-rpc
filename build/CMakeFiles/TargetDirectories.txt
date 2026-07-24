@@ -1,6 +1,0 @@
-/home/zym/Share/mini-rpc/build/CMakeFiles/minirpc.dir
-/home/zym/Share/mini-rpc/build/CMakeFiles/test_socket.dir
-/home/zym/Share/mini-rpc/build/CMakeFiles/test_buffer.dir
-/home/zym/Share/mini-rpc/build/CMakeFiles/test.dir
-/home/zym/Share/mini-rpc/build/CMakeFiles/edit_cache.dir
-/home/zym/Share/mini-rpc/build/CMakeFiles/rebuild_cache.dir

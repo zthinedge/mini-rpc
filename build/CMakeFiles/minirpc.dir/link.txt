@@ -1,2 +1,0 @@
-/usr/bin/ar qc libminirpc.a CMakeFiles/minirpc.dir/src/net/InetAddress.cpp.o CMakeFiles/minirpc.dir/src/net/Socket.cpp.o CMakeFiles/minirpc.dir/src/net/Buffer.cpp.o
-/usr/bin/ranlib libminirpc.a
