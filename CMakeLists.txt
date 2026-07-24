@@ -8,6 +8,12 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 find_package(Threads REQUIRED)
 
+option(
+    MINIRPC_WITH_ZOOKEEPER
+    "Build the ZooKeeper service registry adapter"
+    OFF
+)
+
 include(cmake/Protobuf.cmake)
 
 add_library(minirpc
@@ -46,6 +52,37 @@ target_include_directories(minirpc PUBLIC
 target_link_libraries(minirpc PUBLIC
     Threads::Threads
 )
+
+if(MINIRPC_WITH_ZOOKEEPER)
+    find_path(
+        ZOOKEEPER_INCLUDE_DIR
+        NAMES zookeeper/zookeeper.h
+        REQUIRED
+    )
+    find_library(
+        ZOOKEEPER_MT_LIBRARY
+        NAMES zookeeper_mt
+        REQUIRED
+    )
+
+    add_library(minirpc_zookeeper
+        src/registry/ZooKeeperClient.cpp
+        src/registry/ZooKeeperDiscovery.cpp
+        src/registry/ZooKeeperProvider.cpp
+    )
+    target_include_directories(minirpc_zookeeper
+        PUBLIC
+            ${CMAKE_CURRENT_SOURCE_DIR}/include
+        PRIVATE
+            ${ZOOKEEPER_INCLUDE_DIR}
+    )
+    target_link_libraries(minirpc_zookeeper
+        PUBLIC
+            minirpc
+        PRIVATE
+            ${ZOOKEEPER_MT_LIBRARY}
+    )
+endif()
 
 add_subdirectory(examples/services/calculator)
 
@@ -115,6 +152,11 @@ add_executable(test_connection_pool
 add_executable(test_rpc_metrics
     tests/metrics/test_rpc_metrics.cpp
 )
+if(MINIRPC_WITH_ZOOKEEPER)
+    add_executable(test_zookeeper_registry
+        tests/registry/test_zookeeper_registry.cpp
+    )
+endif()
 
 target_link_libraries(test_socket PRIVATE
     minirpc
@@ -152,6 +194,11 @@ target_link_libraries(test_connection_pool PRIVATE
 target_link_libraries(test_rpc_metrics PRIVATE
     minirpc
 )
+if(MINIRPC_WITH_ZOOKEEPER)
+    target_link_libraries(test_zookeeper_registry PRIVATE
+        minirpc_zookeeper
+    )
+endif()
 
 
 add_test(NAME test_socket COMMAND test_socket)
@@ -166,3 +213,9 @@ add_test(NAME test_rpc_client COMMAND test_rpc_client)
 add_test(NAME test_async_logger COMMAND test_async_logger)
 add_test(NAME test_connection_pool COMMAND test_connection_pool)
 add_test(NAME test_rpc_metrics COMMAND test_rpc_metrics)
+if(MINIRPC_WITH_ZOOKEEPER)
+    add_test(
+        NAME test_zookeeper_registry
+        COMMAND test_zookeeper_registry
+    )
+endif()
